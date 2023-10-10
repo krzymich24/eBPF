@@ -1,7 +1,3 @@
-// protocol type. Based on:
-// https://github.com/iovisor/bcc/blob/master/examples/networking/xdp/xdp_drop_count.py
-// Copyright (c) 2017 GustavoKatel
-// Licensed under the Apache License, Version 2.0 (the "License")
 package main
 
 import (
@@ -17,8 +13,8 @@ import (
 #include <bcc/bcc_common.h>
 #include <bcc/libbpf.h>
 void perf_reader_free(void *ptr);
+#define BPF_PROG_TYPE_XDP 1
 */
-
 import "C"
 
 const source string = `
@@ -31,19 +27,11 @@ const source string = `
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 
-#define IP_TO_BLOCK1 (uint32_t) 0xC0A8010F  // Replace with the actual IP address you want to use
-#define IP_TO_BLOCK2 (uint32_t) 0xc0a80114     // Replace with the actual IP address you want to use
-
-//IP6_TO_BLOCK1_0 = 0x20010db8 // 2001:0db8 (IPv6 address part 1)
-//IP6_TO_BLOCK1_1 = 0x00000000 // 0000:0000 (IPv6 address part 2)
-//IP6_TO_BLOCK1_2 = 0x00000000 // 0000:0000 (IPv6 address part 3)
-//IP6_TO_BLOCK1_3 = 0xc0a80164 // c0a8:0164 (IPv6 address part 4)
-//IP6_TO_BLOCK2_0 = 0x20010a00 // 2001:0a00 (IPv6 address part 1)
-//IP6_TO_BLOCK2_1 = 0x00000000 // 0000:0000 (IPv6 address part 2)
-//IP6_TO_BLOCK2_2 = 0x00000000 // 0000:0000 (IPv6 address part 3)
-//IP6_TO_BLOCK2_3 = 0x00000500 // 0000:0500 (IPv6 address part 4)
+#define IP_TO_BLOCK1 (uint32_t) 0xC0A8010F  // Replace with the actual IP address you want to block
+#define IP_TO_BLOCK2 (uint32_t) 0xC0A80114  // Replace with the actual IP address you want to block
 
 BPF_TABLE("array", int, long, dropcnt, 256);
+
 static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
     struct iphdr *iph = data + nh_off;
     if ((void*)&iph[1] > data_end)
@@ -51,37 +39,18 @@ static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
     return iph->protocol;
 }
 
-static inline int parse_ipv6(void *data, u64 nh_off, void *data_end) {
-    struct ipv6hdr *ip6h = data + nh_off;
-    if ((void*)&ip6h[1] > data_end)
-        return 0;
-    return ip6h->nexthdr;
-}
-int xdp_prog1(struct CTXTYPE *ctx) {
-    void* data_end = (void*)(long)ctx->data_end;
-    void* data = (void*)(long)ctx->data;
+int xdp_prog1(struct __sk_buff *skb) {
+    void* data_end = (void*)(long)skb->data_end;
+    void* data = (void*)(long)skb->data;
     struct ethhdr *eth = data;
-    // drop packets
-    int rc = RETURNCODE; // let pass XDP_PASS or redirect to tx via XDP_TX
-    long *value;
-    uint16_t h_proto;
-    uint64_t nh_off = 0;
-    int index;
-    nh_off = sizeof(*eth);
+    int rc = XDP_PASS;  // Change this to XDP_DROP to block packets by default
 
-    if (data + nh_off  > data_end)
+    if (data + sizeof(*eth) > data_end)
         return rc;
-    h_proto = eth->h_proto;
-    // While the following code appears to be duplicated accidentally,
-    // it's intentional to handle double tags in ethernet frames.
-    if (h_proto == htons(ETH_P_8021Q) || h_proto == htons(ETH_P_8021AD)) {
-        struct vlan_hdr *vhdr;
-        vhdr = data + nh_off;
-        nh_off += sizeof(struct vlan_hdr);
-        if (data + nh_off > data_end)
-            return rc;
-        h_proto = vhdr->h_vlan_encapsulated_proto;
-    }
+
+    uint16_t h_proto = eth->h_proto;
+    uint64_t nh_off = sizeof(*eth);
+
     if (h_proto == htons(ETH_P_8021Q) || h_proto == htons(ETH_P_8021AD)) {
         struct vlan_hdr *vhdr;
         vhdr = data + nh_off;
@@ -92,86 +61,84 @@ int xdp_prog1(struct CTXTYPE *ctx) {
     }
 
     if (h_proto == htons(ETH_P_IP)) {
-        index = parse_ipv4(data, nh_off, data_end);
-        // Check if the packet is an ICMP packet (protocol number 1)
+        int index = parse_ipv4(data, nh_off, data_end);
+
+        if (index == IPPROTO_ICMP) {
             // Extract the source IP address from the IPv4 header
             struct iphdr *iph = data + nh_off;
             uint32_t src_ip = iph->saddr;
-            // Check if the source IP is in the blockedIPs set
+
+            // Check if the source IP is in the blocked IP addresses
             if (src_ip == IP_TO_BLOCK1 || src_ip == IP_TO_BLOCK2) {
                 return XDP_DROP;  // Drop the packet
+            }
         }
+    }
 
-}  else {
-    index = 0;
-}
-value = dropcnt.lookup(&index);
-
-if (value) lock_xadd(value, 1);
-return rc;
+    return rc;
 }
 `
 
 func usage() {
-fmt.Printf("Usage: %v <ifdev>\n", os.Args[0])
-fmt.Printf("e.g.: %v eth0\n", os.Args[0])
-os.Exit(1)
+    fmt.Printf("Usage: %v <ifdev>\n", os.Args[0])
+    fmt.Printf("e.g.: %v eth0\n", os.Args[0])
+    os.Exit(1)
 }
 
 func main() {
-var device string
+    var device string
 
-if len(os.Args) != 2 {
-    usage()
-}
-
-device = os.Args[1]
-ret := "XDP_DROP"
-ctxtype := "xdp_md"
-module := bpf.NewModule(source, []string{
-    "-w",
-    "-DRETURNCODE=" + ret,
-    "-DCTXTYPE=" + ctxtype,
-})
-
-defer module.Close()
-
-fn, err := module.Load("xdp_prog1", C.BPF_PROG_TYPE_XDP, 1, 65536)
-if err != nil {
-    fmt.Fprintf(os.Stderr, "Failed to load xdp prog: %v\n", err)
-    os.Exit(1)
-}
-
-err = module.AttachXDP(device, fn)
-
-if err != nil {
-    fmt.Fprintf(os.Stderr, "Failed to attach xdp prog: %v\n", err)
-    os.Exit(1)
-}
-
-defer func() {
-    if err := module.RemoveXDP(device); err != nil {
-        fmt.Fprintf(os.Stderr, "Failed to remove XDP from %s: %v\n", device, err)
+    if len(os.Args) != 2 {
+        usage()
     }
-}()
 
-fmt.Println("Dropping packets, hit CTRL+C to stop")
+    device = os.Args[1]
+    ret := "XDP_PASS"
+    ctxtype := "__sk_buff"
+    module := bpf.NewModule(source, []string{
+        "-w",
+        "-DRETURNCODE=" + ret,
+        "-DCTXTYPE=" + ctxtype,
+    })
 
-sig := make(chan os.Signal, 1)
-signal.Notify(sig, os.Interrupt, os.Kill)
+    defer module.Close()
 
-dropcnt := bpf.NewTable(module.TableId("dropcnt"), module)
-
-<-sig
-
-fmt.Printf("\n{IP protocol-number}: {total dropped pkts}\n")
-
-for it := dropcnt.Iter(); it.Next(); {
-    key := bpf.GetHostByteOrder().Uint32(it.Key())
-    value := bpf.GetHostByteOrder().Uint64(it.Leaf())
-
-    if value > 0 {
-        fmt.Printf("%v: %v pkts\n", key, value)
+    fn, err := module.Load("xdp_prog1", C.BPF_PROG_TYPE_XDP, 1, 65536)
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Failed to load xdp prog: %v\n", err)
+        os.Exit(1)
     }
-}
+
+    err = module.AttachXDP(device, fn)
+
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Failed to attach xdp prog: %v\n", err)
+        os.Exit(1)
+    }
+
+    defer func() {
+        if err := module.RemoveXDP(device); err != nil {
+            fmt.Fprintf(os.Stderr, "Failed to remove XDP from %s: %v\n", device, err)
+        }
+    }()
+
+    fmt.Println("Filtering packets, hit CTRL+C to stop")
+
+    sig := make(chan os.Signal, 1)
+    signal.Notify(sig, os.Interrupt, os.Kill)
+
+    dropcnt := bpf.NewTable(module.TableId("dropcnt"), module)
+
+    <-sig
+
+    fmt.Printf("\n{IP protocol-number}: {total dropped pkts}\n")
+
+    for it := dropcnt.Iter(); it.Next(); {
+        key := bpf.GetHostByteOrder().Uint32(it.Key())
+        value := bpf.GetHostByteOrder().Uint64(it.Leaf())
+
+        if value > 0 {
+            fmt.Printf("%v: %v pkts\n", key, value)
+        }
+    }
 }
