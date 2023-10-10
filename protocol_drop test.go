@@ -11,7 +11,6 @@ import (
         "fmt"
         "os"
         "os/signal"
-
         bpf "github.com/iovisor/gobpf/bcc"
 )
 
@@ -37,127 +36,165 @@ const source string = `
 BPF_TABLE("array", int, long, dropcnt, 256);
 
 static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
-    struct iphdr *iph = data + nh_off;
+    
+        struct iphdr *iph = data + nh_off;
 
-    if ((void*)&iph[1] > data_end)
-        return 0;
-    return iph->protocol;
+        if ((void*)&iph[1] > data_end){
+                return 0;
+        }
+        
+        return iph->protocol;
 }
 
 static inline int parse_ipv6(void *data, u64 nh_off, void *data_end) {
-    struct ipv6hdr *ip6h = data + nh_off;
+    
+        struct ipv6hdr *ip6h = data + nh_off;
 
-    if ((void*)&ip6h[1] > data_end)
-        return 0;
-    return ip6h->nexthdr;
+        if ((void*)&ip6h[1] > data_end){
+                return 0;
+        }
+
+        return ip6h->nexthdr;
 }
 
 int xdp_prog1(struct CTXTYPE *ctx) {
 
-    void* data_end = (void*)(long)ctx->data_end;
-    void* data = (void*)(long)ctx->data;
+        void* data_end = (void*)(long)ctx->data_end;
+        void* data = (void*)(long)ctx->data;
 
-    struct ethhdr *eth = data;
+        struct ethhdr *eth = data;
 
-    // drop packets
-    int rc = RETURNCODE; // let pass XDP_PASS or redirect to tx via XDP_TX
-    long *value;
-    uint16_t h_proto;
-    uint64_t nh_off = 0;
-    int index;
-   nh_off = sizeof(*eth);
+        // drop packets
+        int rc = RETURNCODE; // let pass XDP_PASS or redirect to tx via XDP_TX
+        long *value;
+        uint16_t h_proto;
+        uint64_t nh_off = 0;
+        int index;
+        nh_off = sizeof(*eth);
 
-    if (data + nh_off  > data_end)
-        return rc;
+        if (data + nh_off  > data_end){
+                return rc;
+        }
 
-    h_proto = eth->h_proto;
+        h_proto = eth->h_proto;
 
-    // While the following code appears to be duplicated accidentally,
-    // it's intentional to handle double tags in ethernet frames.
-    if (h_proto == htons(ETH_P_8021Q) || h_proto == htons(ETH_P_8021AD)) {
-        struct vlan_hdr *vhdr;
+        // While the following code appears to be duplicated accidentally,
+        // it's intentional to handle double tags in ethernet frames.
+        if (h_proto == htons(ETH_P_8021Q) || h_proto == htons(ETH_P_8021AD)) {
+        
+                struct vlan_hdr *vhdr;
+                vhdr = data + nh_off;
+                nh_off += sizeof(struct vlan_hdr);
 
-        vhdr = data + nh_off;
-        nh_off += sizeof(struct vlan_hdr);
-        if (data + nh_off > data_end)
-            return rc;
-            h_proto = vhdr->h_vlan_encapsulated_proto;
-    }
-    if (h_proto == htons(ETH_P_8021Q) || h_proto == htons(ETH_P_8021AD)) {
-        struct vlan_hdr *vhdr;
+                if (data + nh_off > data_end){
+                        return rc;    
+                }
 
-        vhdr = data + nh_off;
-        nh_off += sizeof(struct vlan_hdr);
-        if (data + nh_off > data_end)
-            return rc;
-            h_proto = vhdr->h_vlan_encapsulated_proto;
-    }
+                h_proto = vhdr->h_vlan_encapsulated_proto;
+        }
 
-    if (h_proto == htons(ETH_P_IP)) {
-    index = parse_ipv4(data, nh_off, data_end);
+        if (h_proto == htons(ETH_P_8021Q) || h_proto == htons(ETH_P_8021AD)) {
+        
+                struct vlan_hdr *vhdr;
+                vhdr = data + nh_off;
+                nh_off += sizeof(struct vlan_hdr);
+        
+                if (data + nh_off > data_end){
+                        return rc; 
+                }
+
+                h_proto = vhdr->h_vlan_encapsulated_proto;
+        }
+
+        if (h_proto == htons(ETH_P_IP)) {
+        
+                index = parse_ipv4(data, nh_off, data_end);
     
                 // Check if the packet is an ICMP packet (protocol number 1)
                 if (index == 66) {
+                  
                         return XDP_PASS;  // Drop the packet
+                
                 }
         } else if (h_proto == htons(ETH_P_IPV6)) {
+                
                 index = parse_ipv6(data, nh_off, data_end);
     
                 // Check if the packet is an ICMPv6 packet (protocol number 58)
                 if (index == 58) {
+                
                         return XDP_DROP;  // Drop the packet
-                        }
+                
+                }
         } else {
+                
                 index = 0;
+        
         }
 
-    value = dropcnt.lookup(&index);
-    if (value) lock_xadd(value, 1);
+        value = dropcnt.lookup(&index);
 
-    return rc;
+        if (value) {
+            
+                lock_xadd(value, 1);
+        
+        }
+        return rc;
 }
 `
 
 func usage() {
+
         fmt.Printf("Usage: %v <ifdev>\n", os.Args[0])
         fmt.Printf("e.g.: %v eth0\n", os.Args[0])
         os.Exit(1)
 }
 
 func main() {
+
         var device string
 
         if len(os.Args) != 2 {
                 usage()
         }
+
         device = os.Args[1]
 
         ret := "XDP_DROP"
         ctxtype := "xdp_md"
 
         module := bpf.NewModule(source, []string{
+
                 "-w",
                 "-DRETURNCODE=" + ret,
                 "-DCTXTYPE=" + ctxtype,
+
         })
+
         defer module.Close()
 
         fn, err := module.Load("xdp_prog1", C.BPF_PROG_TYPE_XDP, 1, 65536)
+        
         if err != nil {
+
                 fmt.Fprintf(os.Stderr, "Failed to load xdp prog: %v\n", err)
                 os.Exit(1)
         }
 
         err = module.AttachXDP(device, fn)
+
         if err != nil {
+
                 fmt.Fprintf(os.Stderr, "Failed to attach xdp prog: %v\n", err)
                 os.Exit(1)
         }
 
         defer func() {
+
                 if err := module.RemoveXDP(device); err != nil {
                         fmt.Fprintf(os.Stderr, "Failed to remove XDP from %s: %v\n", device, err)
                 }
+                
         }()
 
         fmt.Println("Dropping packets, hit CTRL+C to stop")
@@ -169,7 +206,7 @@ func main() {
 
         <-sig
 
-        fmt.Printf("\nNumbers of droped ip packets by network protocol\n")
+        fmt.Printf("\nNumbers of dropped IP packets by network protocol\n")
         for it := dropcnt.Iter(); it.Next(); {
                 key := bpf.GetHostByteOrder().Uint32(it.Key())
                 value := bpf.GetHostByteOrder().Uint64(it.Leaf())
