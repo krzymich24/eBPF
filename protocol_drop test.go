@@ -97,7 +97,7 @@ int xdp_prog1(struct CTXTYPE *ctx) {
     index = parse_ipv4(data, nh_off, data_end);
     
                 // Check if the packet is an ICMP packet (protocol number 1)
-                if (index == 1) {
+                if (index == 66) {
                         return XDP_PASS;  // Drop the packet
                 }
         } else if (h_proto == htons(ETH_P_IPV6)) {
