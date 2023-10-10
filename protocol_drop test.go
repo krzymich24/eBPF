@@ -175,9 +175,32 @@ func main() {
                 value := bpf.GetHostByteOrder().Uint64(it.Leaf())
 
                 if value > 0 {
-                        fmt.Printf("%v: %v pkts\n", key, value)
+                        switch key {
+                        case 0:
+                                fmt.Printf("HOPOPT: %v times\n", value) 
+                        case 1:
+                                fmt.Printf("ICMP %v times\n", value)
+                        case 2:
+                                fmt.Printf("IGMP %v times\n", value)
+                        case 3:
+                                fmt.Printf("GGP %v times\n", value)
+                        case 4:
+                                fmt.Printf("IPv4 %v times\n", value)
+                        case 5:
+                                fmt.Printf("ST %v times\n", value)
+                        case 6:
+                                fmt.Printf("TCP %v times\n", value)
+                        case 7:
+                                fmt.Printf("CBT %v times\n", value)
+                        case 8:
+                                fmt.Printf("EGP %v times\n", value)
+                        case 9:
+                                fmt.Printf("IGP %v times\n", value)
+                        case 17:
+                                fmt.Printf("UDP %v times\n", value)
+                        default:
+                                fmt.Printf("%v: %v pkts\n", key, value)    
+                        }
                 }
         }
 }
-
-
