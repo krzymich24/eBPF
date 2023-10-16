@@ -87,17 +87,17 @@ int xdp_prog1(struct CTXTYPE *ctx) {
         if (index == 66) {
             return XDP_PASS;  // Drop the packet
         }
-    //     if (index == 17) { // Protocol 17 is UDP, you can change this to the desired protocol.
-    //        struct iphdr *iph = data + nh_off;
-    //        u32 src_ip = iph->saddr;
-    //        u32 *value = blocked_ips.lookup(&src_ip);
-    //        if (value) {
-    //            return XDP_DROP; // Drop the packet from blocked IP address
-    //        }
-    //    }
+         if (index == 17) { // Protocol 17 is UDP, you can change this to the desired protocol.
+            struct iphdr *iph = data + nh_off;
+            u32 src_ip = iph->saddr;
+            u32 *value = blocked_ips.lookup(&src_ip);
+            if (value) {
+                return XDP_DROP; // Drop the packet from blocked IP address
+            }
+        }
     }
-    //value = dropcnt.lookup(&index);
-    //if (value) {
+    //value = dropcnt.lookup(&index); //blocking program
+    //if (value) {  //useless
     //    lock_xadd(value, 1);
     //}
     return rc;
@@ -143,10 +143,10 @@ func main() {
     fmt.Println("Blocking packets from specific IPv4 addresses, hit CTRL+C to stop")
     sig := make(chan os.Signal, 1)
     signal.Notify(sig, os.Interrupt, os.Kill)
-    dropcnt := bpf.NewTable(module.TableId("dropcnt"), module)
+    //dropcnt := bpf.NewTable(module.TableId("dropcnt"), module)
     blockedIPs := bpf.NewTable(module.TableId("blocked_ips"), module)
     // Add the IPv4 addresses you want to block to the 'blocked_ips' map
-    blockIPs := []string{"10.0.0.1", "192.168.1.2"}
+    blockIPs := []string{"10.160.38.223", "192.168.1.2"}
     for _, ip := range blockIPs {
         if parsedIP := net.ParseIP(ip); parsedIP != nil {
             blockedIPs.Set(parsedIP.To4(), []byte{0})
@@ -156,9 +156,9 @@ func main() {
     elapsed := time.Since(start)
     seconds := elapsed.Seconds()
     fmt.Printf("\nNumbers of dropped IP packets by network protocol blocked by %.2f seconds\n", seconds)
-    for it := dropcnt.Iter(); it.Next(); {
-        key := bpf.GetHostByteOrder().Uint32(it.Key())
-        value := bpf.GetHostByteOrder().Uint64(it.Leaf())
-        fmt.Printf("Protocol %d: %d\n", key, value)
-    }
+    //for it := dropcnt.Iter(); it.Next(); {
+    //    key := bpf.GetHostByteOrder().Uint32(it.Key())
+    //    value := bpf.GetHostByteOrder().Uint64(it.Leaf())
+    //    fmt.Printf("Protocol %d: %d\n", key, value)
+    //}
 }
