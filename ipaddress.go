@@ -69,9 +69,9 @@ int xdp_prog1(struct __sk_buff *skb) {
             uint32_t src_ip = iph->saddr;
 
             // Check if the source IP is in the blocked IP addresses
-            if (src_ip == IP_TO_BLOCK1 || src_ip == IP_TO_BLOCK2) {
-                return XDP_DROP;  // Drop the packet
-            }
+            //if (src_ip == IP_TO_BLOCK1 || src_ip == IP_TO_BLOCK2) {
+               return XDP_DROP;  // Drop the packet
+            //}
         }
     }
 
