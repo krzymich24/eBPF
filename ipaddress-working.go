@@ -84,15 +84,15 @@ int xdp_prog1(struct CTXTYPE *ctx) {
 
     if (h_proto == htons(ETH_P_IP)) {
         index = parse_ipv4(data, nh_off, data_end);
-        if (index == 66) {
-            return XDP_PASS;  // Drop the packet
-        }
-         if (index == 17) { // Protocol 17 is UDP, you can change this to the desired protocol.
+        if (index == 1) {
             struct iphdr *iph = data + nh_off;
             u32 src_ip = iph->saddr;
             u32 *value = blocked_ips.lookup(&src_ip);
+
             if (value) {
-                return XDP_DROP; // Drop the packet from blocked IP address
+            return XDP_DROP; // Drop the packet from blocked IP address
+            }else{
+            return XDP_PASS;
             }
         }
     }
