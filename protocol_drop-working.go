@@ -11,7 +11,7 @@ import (
         "fmt"
         "os"
         "os/signal"
-		"time"
+	"time"
         bpf "github.com/iovisor/gobpf/bcc"
 )
 
@@ -154,7 +154,7 @@ func usage() {
 
 func main() {
 
-		start := time.Now()
+	start := time.Now()
 
         var device string
 
