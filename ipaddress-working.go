@@ -44,8 +44,10 @@ static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
 int xdp_prog1(struct CTXTYPE *ctx) {
     void* data_end = (void*)(long)ctx->data_end;
     void* data = (void*)(long)ctx->data;
+
     struct ethhdr *eth = data;
-    int rc = XDP_DROP;
+
+    int rc = RETURNCODE;
     long *value;
     uint16_t h_proto;
     uint64_t nh_off = 0;
@@ -94,6 +96,8 @@ int xdp_prog1(struct CTXTYPE *ctx) {
             }else{
             return XDP_PASS;
             }
+        }else{
+            return XDP_DROP;
         }
     }
     return rc;
@@ -113,7 +117,7 @@ func main() {
         usage()
     }
     device = os.Args[1]
-    ret := "XDP_DROP"
+    ret := "XDP_PASS"
     ctxtype := "xdp_md"
     module := bpf.NewModule(source, []string{
         "-w",
@@ -141,7 +145,7 @@ func main() {
     signal.Notify(sig, os.Interrupt, os.Kill)
     blockedIPs := bpf.NewTable(module.TableId("blocked_ips"), module)
     // Add the IPv4 addresses you want to block to the 'blocked_ips' map
-    blockIPs := []string{"10.160.38.223", "192.168.1.2"}
+    blockIPs := []string{"192.168.1.10", "192.168.1.8"}
     for _, ip := range blockIPs {
         if parsedIP := net.ParseIP(ip); parsedIP != nil {
             blockedIPs.Set(parsedIP.To4(), []byte{0})

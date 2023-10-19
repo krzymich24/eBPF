@@ -113,7 +113,7 @@ int xdp_prog1(struct CTXTYPE *ctx) {
                 index = parse_ipv4(data, nh_off, data_end);
     
                 // Check if the packet is an ICMP packet (protocol number 1)
-                if (index == 66) {
+                if (index == 1) {
 
                         return XDP_PASS;  // Drop the packet
 
@@ -221,10 +221,6 @@ func main() {
 
                 if value > 0 {
                         switch key {
-                        case 0:
-								speed := float64(value)
-								bp := speed/seconds 
-                                fmt.Printf("HOPOPT: %d times, avg: %.2f bps\n", value, bp)
                         case 1:
 								speed := float64(value)
 								bp := speed/seconds 
