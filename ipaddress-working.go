@@ -28,7 +28,6 @@ const source string = `
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 
-BPF_TABLE("array", int, long, dropcnt, 256);
 BPF_HASH(blocked_ips, u32, u32);
 
 static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
