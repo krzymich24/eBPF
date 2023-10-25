@@ -100,6 +100,7 @@ int xdp_prog1(struct CTXTYPE *ctx) {
             return XDP_DROP;
         }
     }
+    
     return rc;
 }
 `
