@@ -99,6 +99,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
 
             struct iphdr *iph = data + nh_off;
             u32 src_ip = iph->saddr;
+            u32 dest_ip = iph->daddr; // Destination IP address
             u32 *value = blocked_icmp_ips.lookup(&src_ip);
 
             if (value) {
@@ -110,9 +111,20 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
 
             struct iphdr *iph = data + nh_off;
             u32 src_ip = iph->saddr;
+            u32 dest_ip = iph->daddr; // Destination IP address
             u32 *value = blocked_tcp_ips.lookup(&src_ip);
 
-            u16 dest_port = 20; // Replace with the actual code to extract the destination port
+            //u16 dest_port = 20; // Replace with the actual code to extract the destination port
+            
+            data += sizeof(struct iphdr); // Skip the IPv4 header.
+            uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+            dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
+
+            data += sizeof(struct iphdr); // Skip the IPv4 header.
+            uint16_t src_port = *((uint16_t*)data); // Extract the destination port.
+            src_port = ntohs(src_port); // Convert to host byte order if necessary.
+
+
             u32 *port_value = blocked_tcp_ports.lookup(&dest_port);
 
             if (port_value) {
@@ -124,11 +136,21 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
 
             struct iphdr *iph = data + nh_off;
             u32 src_ip = iph->saddr;
+            u32 dest_ip = iph->daddr; // Destination IP address
             u32 *value = blocked_udp_ips.lookup(&src_ip);
 
             if (value) {
 
-                u16 dest_port = 21; // Replace with the actual code to extract the destination port
+                //u16 dest_port = 21; // Replace with the actual code to extract the destination port
+                
+                data += sizeof(struct iphdr); // Skip the IPv4 header.
+                uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+                dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
+
+                data += sizeof(struct iphdr); // Skip the IPv4 header.
+                uint16_t src_port = *((uint16_t*)data); // Extract the destination port.
+                src_port = ntohs(src_port); // Convert to host byte order if necessary.
+
                 u32 *port_value = blocked_udp_ports.lookup(&dest_port);
 
                 if (port_value) {
