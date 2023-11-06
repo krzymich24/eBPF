@@ -86,7 +86,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
 
     if (h_proto == htons(ETH_P_IP)) {
         index = parse_ipv4(data, nh_off, data_end);
-        if (index == 1) {
+        if (index == 1) {                                               //ICMP Protocol
             struct iphdr *iph = data + nh_off;
             u32 src_ip = iph->saddr;
             u32 *value = blocked_ips.lookup(&src_ip);
