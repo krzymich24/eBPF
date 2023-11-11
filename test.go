@@ -107,142 +107,132 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
         if (index == 1 ) {
 
             struct iphdr *iph = data + nh_off;
-            u32 src_ip = iph->saddr;  // Source IP address
-            u32 dest_ip = iph->daddr; // Destination IP address
-            u32 *value_src = blocked_icmp_src_ips.lookup(&src_ip);
-            u32 *value_dest = blocked_icmp_dest_ips.lookup(&dest_ip);
-
+			u32 src_ip = iph->saddr;  // Source IP address
+			u32 *value_src = blocked_icmp_src_ips.lookup(&src_ip);
+			
             if (value_src) {
                 return XDP_DROP; // Drop the packet from blocked IP address
-            }else{
-                return XDP_PASS; // Passing not blocker packets
+            }
+			
+			u32 dest_ip = iph->daddr; // Destination IP address
+			u32 *value_dest = blocked_icmp_dest_ips.lookup(&dest_ip);
+
+			if (value_dest) {
+                return XDP_DROP; // Drop the packet from blocked IP address
             }
 
-            if (value_dest) {
-                return XDP_DROP; // Drop the packet from blocked IP address
-            }else{
-                return XDP_PASS; // Passing not blocker packets
-            }
+			return XDP_PASS;
 
         } else if (index == 6 ) {
 
             struct iphdr *iph = data + nh_off;
             u32 src_ip = iph->saddr; // Source IP address
-            u32 dest_ip = iph->daddr; // Destination IP address
             u32 *value_src_ip = blocked_tcp_src_ips.lookup(&src_ip);
-            u32 *value_dest_ip = blocked_tcp_dest_ips.lookup(&dests_ip);
+           
 
             if(value_src_ip){
                 data += sizeof(struct iphdr); // Skip the IPv4 header.
-                uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+                
                 uint16_t src_port = *((uint16_t*)data); // Extract the destination port.
-                dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
                 src_port = ntohs(src_port); // Convert to host byte order if necessary.
-
                 u32 *port_value_src_src = blocked_tcp_src_src_ports.lookup(&src_port);
-                u32 *port_value_src_dest = blocked_tcp_src_dest_ports.lookup(&dest_port);
-
+                
                 if (port_value_src_src) {
                     return XDP_DROP; // Drop the packet from a blocked IP and port
-                }else{
-                    return XDP_PASS; // Passing non-blocked packets
-                }  
+                }
+
+                uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+                dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
+                u32 *port_value_src_dest = blocked_tcp_src_dest_ports.lookup(&dest_port);
 
                 if (port_value_src_dest) {
                     return XDP_DROP; // Drop the packet from a blocked IP and port
-                }else{
-                    return XDP_PASS; // Passing non-blocked packets
-                } 
+                }
 
-            }else{
                 return XDP_PASS;
             }
 
+            u32 dest_ip = iph->daddr; // Destination IP address
+            u32 *value_dest_ip = blocked_tcp_dest_ips.lookup(&dest_ip);
+
             if(value_dest_ip){
                 data += sizeof(struct iphdr); // Skip the IPv4 header.
-                uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+                
                 uint16_t src_port = *((uint16_t*)data); // Extract the destination port.
-                dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
                 src_port = ntohs(src_port); // Convert to host byte order if necessary.
-
                 u32 *port_value_dest_src = blocked_tcp_dest_src_ports.lookup(&src_port);
-                u32 *port_value_dest_dest = blocked_tcp_dest_dest_ports.lookup(&dest_port);
 
                 if (port_value_dest_src) {
                     return XDP_DROP; // Drop the packet from a blocked IP and port
-                }else{
-                    return XDP_PASS; // Passing non-blocked packets
-                }  
+                }
+                
+                uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+                dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
+                u32 *port_value_dest_dest = blocked_tcp_dest_dest_ports.lookup(&dest_port);
 
                 if (port_value_dest_dest) {
                     return XDP_DROP; // Drop the packet from a blocked IP and port
-                }else{
-                    return XDP_PASS; // Passing non-blocked packets
-                } 
+                }
 
-            }else{
-                return XDP_PASS; 
+                return XDP_PASS;
+
             }
 
         } else if (index == 17 ) {
 
             struct iphdr *iph = data + nh_off;
             u32 src_ip = iph->saddr;
-            u32 dest_ip = iph->daddr; // Destination IP address
-            u32 *value_src_ip = blocked_udp_ips.lookup(&src_ip);
-            u32 *value_dest_ip = blocked_udp_ips.lookup(&dest_ip);
-
+            u32 *value_src_ip = blocked_udp_src_ips.lookup(&src_ip);
+            
             if(value_src_ip){
                 data += sizeof(struct iphdr); // Skip the IPv4 header.
-                uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+                
                 uint16_t src_port = *((uint16_t*)data); // Extract the destination port.
-                dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
                 src_port = ntohs(src_port); // Convert to host byte order if necessary.
-
                 u32 *port_value_src_src = blocked_udp_src_src_ports.lookup(&src_port);
-                u32 *port_value_src_dest = blocked_udp_src_dest_ports.lookup(&dest_port);
-
+                
                 if (port_value_src_src) {
                     return XDP_DROP; // Drop the packet from a blocked IP and port
-                }else{
-                    return XDP_PASS; // Passing non-blocked packets
-                }  
+                }
+
+                uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+                dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
+                u32 *port_value_src_dest = blocked_udp_src_dest_ports.lookup(&dest_port);
 
                 if (port_value_src_dest) {
                     return XDP_DROP; // Drop the packet from a blocked IP and port
-                }else{
-                    return XDP_PASS; // Passing non-blocked packets
-                } 
+                }
 
-            }else{
                 return XDP_PASS;
+
             }
+
+            u32 dest_ip = iph->daddr; // Destination IP address
+            u32 *value_dest_ip = blocked_udp_dest_ips.lookup(&dest_ip);
 
             if(value_dest_ip){
                 data += sizeof(struct iphdr); // Skip the IPv4 header.
-                uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+                
                 uint16_t src_port = *((uint16_t*)data); // Extract the destination port.
-                dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
                 src_port = ntohs(src_port); // Convert to host byte order if necessary.
-
                 u32 *port_value_dest_src = blocked_udp_dest_src_ports.lookup(&src_port);
-                u32 *port_value_dest_dest = blocked_udp_dest_dest_ports.lookup(&dest_port);
-
+                
                 if (port_value_dest_src) {
                     return XDP_DROP; // Drop the packet from a blocked IP and port
-                }else{
-                    return XDP_PASS; // Passing non-blocked packets
-                }  
+                }
+
+                uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+                dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
+                u32 *port_value_dest_dest = blocked_udp_dest_dest_ports.lookup(&dest_port);
 
                 if (port_value_dest_dest) {
                     return XDP_DROP; // Drop the packet from a blocked IP and port
-                }else{
-                    return XDP_PASS; // Passing non-blocked packets
-                } 
+                }
 
-            }else{
-                return XDP_PASS; 
+                return XDP_PASS;
+
             }
+        }
     }
     return rc;
 }
@@ -892,7 +882,7 @@ func readTcpSrcSrcPortsFromFile(filePath string) ([]string, error) {
         return nil, err
     }
 
-    return blockTcpSrcSrcSrcSrcPorts, nil
+    return blockTcpSrcSrcPorts, nil
 }
 
 func readTcpSrcDestPortsFromFile(filePath string) ([]string, error) {
@@ -1115,7 +1105,7 @@ func displayBlockedDestTcpIPs(filePath string) {
 } 
 
 func displayBlockedTcpSrcSrcPorts(filePath string) {
-    blockTcpSrcDestPorts, err := readTcpSrcSrcPortsFromFile(filePath)
+    blockTcpSrcSrcPorts, err := readTcpSrcSrcPortsFromFile(filePath)
     if err != nil {
         fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
         return
