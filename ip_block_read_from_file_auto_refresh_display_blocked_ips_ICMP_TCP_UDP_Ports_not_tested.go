@@ -58,6 +58,7 @@ static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) { //XDP res
 }
 
 int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
+    uint64_t timestamp = bpf_ktime_get_ns();
     void* data_end = (void*)(long)ctx->data_end;
     void* data = (void*)(long)ctx->data;
 
@@ -111,6 +112,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
 			u32 *value_src = blocked_icmp_src_ips.lookup(&src_ip);
 			
             if (value_src) {
+                bpf_trace_printk("%u: Blocked ICMP packet from source IP: %u\n", timestamp, src_ip);
                 return XDP_DROP; // Drop the packet from blocked IP address
             }
 			
@@ -118,9 +120,11 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
 			u32 *value_dest = blocked_icmp_dest_ips.lookup(&dest_ip);
 
 			if (value_dest) {
+                bpf_trace_printk("%u: Blocked ICMP packet to destination IP: %u\n", timestamp, dest_ip);
                 return XDP_DROP; // Drop the packet from blocked IP address
             }
 
+            bpf_trace_printk("%u: Pass ICMP packet from source IP: %u, to destination IP: %u\n", timestamp, src_ip, dest_ip);
 			return XDP_PASS;
 
         } else if (index == 6 ) {
@@ -138,6 +142,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
                 u32 *port_value_src_src = blocked_tcp_src_src_ports.lookup(&src_port);
                 
                 if (port_value_src_src) {
+                    bpf_trace_printk("%u: Blocked TCP packet from source IP: %u, source port: %u\n", timestamp, src_ip, src_port);
                     return XDP_DROP; // Drop the packet from a blocked IP and port
                 }
 
@@ -146,6 +151,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
                 u32 *port_value_src_dest = blocked_tcp_src_dest_ports.lookup(&dest_port);
 
                 if (port_value_src_dest) {
+                    bpf_trace_printk("%u: Blocked TCP packet from source IP: %u, destination port: %u\n", timestamp, src_ip, dest_port);
                     return XDP_DROP; // Drop the packet from a blocked IP and port
                 }
 
@@ -163,6 +169,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
                 u32 *port_value_dest_src = blocked_tcp_dest_src_ports.lookup(&src_port);
 
                 if (port_value_dest_src) {
+                    bpf_trace_printk("%u: Blocked TCP packet to destination IP: %u, source port: %u\n", timestamp, dest_ip, src_port);
                     return XDP_DROP; // Drop the packet from a blocked IP and port
                 }
                 
@@ -171,12 +178,23 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
                 u32 *port_value_dest_dest = blocked_tcp_dest_dest_ports.lookup(&dest_port);
 
                 if (port_value_dest_dest) {
+                    bpf_trace_printk("%u: Blocked TCP packet to destination IP: %u, destination port: %u\n", timestamp, dest_ip, dest_port);
                     return XDP_DROP; // Drop the packet from a blocked IP and port
                 }
 
                 return XDP_PASS;
 
             }
+
+            data += sizeof(struct iphdr); // Skip the IPv4 header.
+            uint16_t src_port = *((uint16_t*)data); // Extract the destination port.
+            src_port = ntohs(src_port); // Convert to host byte order if necessary.
+            uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+            dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
+            
+            bpf_trace_printk("%u: Pass TCP packet from source IP: %u, to destination IP: %u\n", timestamp, src_ip, dest_ip);
+            bpf_trace_printk("%u: Pass TCP packet from source port: %u to destination port: %u\n", timestamp, src_port, dest_port);
+            return XDP_PASS;
 
         } else if (index == 17 ) {
 
@@ -192,6 +210,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
                 u32 *port_value_src_src = blocked_udp_src_src_ports.lookup(&src_port);
                 
                 if (port_value_src_src) {
+                    bpf_trace_printk("%u: Blocked UDP packet from source IP: %u, source port: %u\n", timestamp, src_ip, src_port);
                     return XDP_DROP; // Drop the packet from a blocked IP and port
                 }
 
@@ -200,6 +219,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
                 u32 *port_value_src_dest = blocked_udp_src_dest_ports.lookup(&dest_port);
 
                 if (port_value_src_dest) {
+                    bpf_trace_printk("%u: Blocked UDP packet from source IP: %u, destination port: %u\n", timestamp, src_ip, dest_port);
                     return XDP_DROP; // Drop the packet from a blocked IP and port
                 }
 
@@ -218,6 +238,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
                 u32 *port_value_dest_src = blocked_udp_dest_src_ports.lookup(&src_port);
                 
                 if (port_value_dest_src) {
+                    bpf_trace_printk("%u: Blocked UDP packet to destination IP: %u, source port: %u\n", timestamp, dest_ip, src_port);
                     return XDP_DROP; // Drop the packet from a blocked IP and port
                 }
 
@@ -226,12 +247,26 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
                 u32 *port_value_dest_dest = blocked_udp_dest_dest_ports.lookup(&dest_port);
 
                 if (port_value_dest_dest) {
+                    bpf_trace_printk("%u: Blocked UDP packet to destination IP: %u, destination port: %u\n", timestamp, dest_ip, dest_port);
                     return XDP_DROP; // Drop the packet from a blocked IP and port
                 }
 
                 return XDP_PASS;
 
             }
+
+            data += sizeof(struct iphdr); // Skip the IPv4 header. 
+            uint16_t src_port = *((uint16_t*)data); // Extract the destination port.
+            src_port = ntohs(src_port); // Convert to host byte order if necessary.
+            uint16_t dest_port = *((uint16_t*)data); // Extract the destination port.
+            dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
+
+            bpf_trace_printk("%u: Pass UDP packet from source IP: %u, to destination IP: %u\n", timestamp, src_ip, dest_ip);
+            bpf_trace_printk("%u: Pass UDP packet from source port: %u to destination port: %u\n", timestamp, src_port, dest_port);
+            return XDP_PASS;
+        } else {
+            bpf_trace_printk("%u: Pass diffrent packet", timestamp);
+            return XDP_PASS;
         }
     }
     return rc;
