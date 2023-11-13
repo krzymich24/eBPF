@@ -282,51 +282,63 @@ func main() {
     }()
 
     //ICMP
+    var lastIcmpSrcFileContent string
+    blockedIcmpSrcIPs := bpf.NewTable(module.TableId("blocked_icmp_src_ips"), module)
     blockIcmpSrcIPsFile := "block_icmp_src_ips.txt"
-    lastIcmpSrcFileContent := "" // Store the last content of the file
 
+    var lastIcmpDestFileContent string
+    blockedIcmpDestIPs := bpf.NewTable(module.TableId("blocked_icmp_dest_ips"), module)
     blockIcmpDestIPsFile := "block_icmp_dest_ips.txt"
-    lastIcmpDestFileContent := "" // Store the last content of the file
     
     //UDP
+    var lastUdpSrcFileContent string
+    blockedUdpSrcIPs := bpf.NewTable(module.TableId("blocked_udp_src_ips"), module)
     blockUdpSrcIPsFile := "block_udp_src_ips.txt"
-    lastUdpSrcFileContent := "" // Store the last content of the file
 
+    var lastUdpDestFileContent string
+    blockedUdpDestIPs := bpf.NewTable(module.TableId("blocked_udp_dest_ips"), module)
     blockUdpDestIPsFile := "block_udp_dest_ips.txt"
-    lastUdpDestFileContent := "" // Store the last content of the file
 
+    var lastUdpSrcSrcPortsFileContent string
+    blockedUdpSrcSrcPorts := bpf.NewTable(module.TableId("blocked_udp_src_src_ports"), module)
     blockUdpSrcSrcPortsFile := "block_udp_src_src_ports.txt"
-    lastUdpSrcSrcPortsFileContent := "" // Store the last content of the file
 
+    var lastUdpSrcDestPortsFileContent string
+    blockedUdpSrcDestPorts := bpf.NewTable(module.TableId("blocked_udp_src_dest_ports"), module)
     blockUdpSrcDestPortsFile := "block_udp_src_dest_ports.txt"
-    lastUdpSrcDestPortsFileContent := "" // Store the last content of the file
 
+    var lastUdpDestSrcPortsFileContent string
+    blockedUdpDestSrcPorts := bpf.NewTable(module.TableId("blocked_udp_dest_src_ports"), module)
     blockUdpDestSrcPortsFile := "block_udp_dest_src_ports.txt"
-    lastUdpDestSrcPortsFileContent := "" // Store the last content of the file
 
+    var lastUdpDestDestPortsFileContent string
+    blockedUdpDestDestPorts := bpf.NewTable(module.TableId("blocked_udp_dest_dest_ports"), module)
     blockUdpDestDestPortsFile := "block_udp_dest_dest_ports.txt"
-    lastUdpDestDestPortsFileContent := "" // Store the last content of the file
-
-    //TCP
-    blockTcpSrcIPsFile := "block_tcp_src_ips.txt"
-    lastTcpSrcFileContent := "" // Store the last content of the file
     
+    //TCP
+    var lastTcpSrcFileContent string
+    blockedTcpSrcIPs := bpf.NewTable(module.TableId("blocked_tcp_src_ips"), module)
+    blockTcpSrcIPsFile := "block_tcp_src_ips.txt"
+    
+    var lastTcpDestFileContent string
+    blockedTcpDestIPs := bpf.NewTable(module.TableId("blocked_tcp_dest_ips"), module)
     blockTcpDestIPsFile := "block_tcp_dest_ips.txt"
-    lastTcpDestFileContent := "" // Store the last content of the file
 
+    var lastTcpSrcSrcPortsFileContent string
+    blockedTcpSrcSrcPorts := bpf.NewTable(module.TableId("blocked_tcp_src_src_ports"), module)
     blockTcpSrcSrcPortsFile := "block_tcp_src_src_ports.txt"
-    lastTcpSrcSrcPortsFileContent := "" // Store the last content of the file
-
+    
+    var lastTcpSrcDestPortsFileContent string
+    blockedTcpSrcDestPorts := bpf.NewTable(module.TableId("blocked_tcp_src_dest_ports"), module)
     blockTcpSrcDestPortsFile := "block_tcp_src_dest_ports.txt"
-    lastTcpSrcDestPortsFileContent := "" // Store the last content of the file
-
+   
+    var lastTcpDestSrcPortsFileContent string
+    blockedTcpDestSrcPorts := bpf.NewTable(module.TableId("blocked_tcp_dest_src_ports"), module)
     blockTcpDestSrcPortsFile := "block_tcp_dest_src_ports.txt"
-    lastTcpDestSrcPortsFileContent := "" // Store the last content of the file
 
+    var lastTcpDestDestPortsFileContent string
+    blockedTcpDestDestPorts := bpf.NewTable(module.TableId("blocked_tcp_dest_dest_ports"), module)
     blockTcpDestDestPortsFile := "block_tcp_dest_dest_ports.txt"
-    lastTcpDestDestPortsFileContent := "" // Store the last content of the file
-
-
 
     fmt.Println("Blocking packets from specific IPv4 addresses, hit CTRL+C to stop")
     sig := make(chan os.Signal, 1)
@@ -334,312 +346,22 @@ func main() {
 
     for {
         //ICMP
-        blockIcmpSrcIPs, err := readIcmpSrcIPsFromFile(blockIcmpSrcIPsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileIcmpSrcContent := strings.Join(blockIcmpSrcIPs, "\n")
-
-        if fileIcmpSrcContent != lastIcmpSrcFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedIcmpSrcIPs := bpf.NewTable(module.TableId("blocked_icmp_src_ips"), module)
-            clearTable(blockedIcmpSrcIPs) // Clear the existing entries
-            for _, ip := range blockIcmpSrcIPs {
-                if parsedIP := net.ParseIP(ip); parsedIP != nil {
-                    blockedIcmpSrcIPs.Set(parsedIP.To4(), []byte{0})
-                }
-            }
-            lastIcmpSrcFileContent = fileIcmpSrcContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedSrcIcmpIPs(blockIcmpSrcIPsFile)
-        }
-
-        blockIcmpDestIPs, err := readIcmpDestIPsFromFile(blockIcmpDestIPsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileIcmpDestContent := strings.Join(blockIcmpDestIPs, "\n")
-
-        if fileIcmpDestContent != lastIcmpDestFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedIcmpDestIPs := bpf.NewTable(module.TableId("blocked_icmp_dest_ips"), module)
-            clearTable(blockedIcmpDestIPs) // Clear the existing entries
-            for _, ip := range blockIcmpDestIPs {
-                if parsedIP := net.ParseIP(ip); parsedIP != nil {
-                    blockedIcmpDestIPs.Set(parsedIP.To4(), []byte{0})
-                }
-            }
-            lastIcmpDestFileContent = fileIcmpDestContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedDestIcmpIPs(blockIcmpDestIPsFile)
-        }
+        updateBlockedTableFromFile(blockIcmpSrcIPsFile, blockedIcmpSrcIPs, &lastIcmpSrcFileContent, displayBlockedSrcIcmpIPs)
+        updateBlockedTableFromFile(blockIcmpDestIPsFile, blockedIcmpDestIPs, &lastIcmpDestFileContent, displayBlockedDestIcmpIPs)
         //UDP
-        blockUdpSrcIPs, err := readUdpSrcIPsFromFile(blockUdpSrcIPsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileUdpSrcContent := strings.Join(blockUdpSrcIPs, "\n")
-
-        if fileUdpSrcContent != lastUdpSrcFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedUdpSrcIPs := bpf.NewTable(module.TableId("blocked_udp_src_ips"), module)
-            clearTable(blockedUdpSrcIPs) // Clear the existing entries
-            for _, ip := range blockUdpSrcIPs {
-                if parsedIP := net.ParseIP(ip); parsedIP != nil {
-                    blockedUdpSrcIPs.Set(parsedIP.To4(), []byte{0})
-                }
-            }
-            lastUdpSrcFileContent = fileUdpSrcContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedSrcUdpIPs(blockUdpSrcIPsFile)
-        }
-
-        blockUdpDestIPs, err := readUdpDestIPsFromFile(blockUdpDestIPsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileUdpDestContent := strings.Join(blockUdpDestIPs, "\n")
-
-        if fileUdpDestContent != lastUdpDestFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedUdpDestIPs := bpf.NewTable(module.TableId("blocked_udp_dest_ips"), module)
-            clearTable(blockedUdpDestIPs) // Clear the existing entries
-            for _, ip := range blockUdpDestIPs {
-                if parsedIP := net.ParseIP(ip); parsedIP != nil {
-                    blockedUdpDestIPs.Set(parsedIP.To4(), []byte{0})
-                }
-            }
-            lastUdpDestFileContent = fileUdpDestContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedDestUdpIPs(blockUdpDestIPsFile)
-        }
-
-        blockUdpSrcSrcPorts, err := readUdpSrcSrcPortsFromFile(blockUdpSrcSrcPortsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileUdpSrcSrcPortsContent := strings.Join(blockUdpSrcSrcPorts, "\n")
-
-        if fileUdpSrcSrcPortsContent != lastUdpSrcSrcPortsFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedUdpSrcSrcPorts := bpf.NewTable(module.TableId("blocked_udp_src_src_ports"), module)
-            clearTable(blockedUdpSrcSrcPorts) // Clear the existing entries
-            for _, port := range blockUdpSrcSrcPorts {
-                    blockedUdpSrcSrcPorts.Set([]byte(port), []byte{0})
-            }
-            lastUdpSrcSrcPortsFileContent = fileUdpSrcSrcPortsContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedUdpSrcSrcPorts(blockUdpSrcSrcPortsFile)
-        }
-
-        blockUdpSrcDestPorts, err := readUdpSrcDestPortsFromFile(blockUdpSrcDestPortsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileUdpSrcDestPortsContent := strings.Join(blockUdpSrcDestPorts, "\n")
-
-        if fileUdpSrcDestPortsContent != lastUdpSrcDestPortsFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedUdpSrcDestPorts := bpf.NewTable(module.TableId("blocked_udp_src_dest_ports"), module)
-            clearTable(blockedUdpSrcDestPorts) // Clear the existing entries
-            for _, port := range blockUdpSrcDestPorts {
-                    blockedUdpSrcDestPorts.Set([]byte(port), []byte{0})
-            }
-            lastUdpSrcDestPortsFileContent = fileUdpSrcDestPortsContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedUdpSrcDestPorts(blockUdpSrcDestPortsFile)
-        }
-
-        blockUdpDestSrcPorts, err := readUdpDestSrcPortsFromFile(blockUdpDestSrcPortsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileUdpDestSrcPortsContent := strings.Join(blockUdpDestSrcPorts, "\n")
-
-        if fileUdpDestSrcPortsContent != lastUdpDestSrcPortsFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedUdpDestSrcPorts := bpf.NewTable(module.TableId("blocked_udp_dest_src_ports"), module)
-            clearTable(blockedUdpDestSrcPorts) // Clear the existing entries
-            for _, port := range blockUdpDestSrcPorts {
-                    blockedUdpDestSrcPorts.Set([]byte(port), []byte{0})
-            }
-            lastUdpDestSrcPortsFileContent = fileUdpDestSrcPortsContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedUdpDestSrcPorts(blockUdpDestSrcPortsFile)
-        }
-
-        blockUdpDestDestPorts, err := readUdpDestDestPortsFromFile(blockUdpDestDestPortsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileUdpDestDestPortsContent := strings.Join(blockUdpDestDestPorts, "\n")
-
-        if fileUdpDestDestPortsContent != lastUdpDestDestPortsFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedUdpDestDestPorts := bpf.NewTable(module.TableId("blocked_udp_dest_dest_ports"), module)
-            clearTable(blockedUdpDestDestPorts) // Clear the existing entries
-            for _, port := range blockUdpDestDestPorts {
-                    blockedUdpDestDestPorts.Set([]byte(port), []byte{0})
-            }
-            lastUdpDestDestPortsFileContent = fileUdpDestDestPortsContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedUdpDestDestPorts(blockUdpDestDestPortsFile)
-        }
-
+        updateBlockedTableFromFile(blockUdpSrcIPsFile, blockedUdpSrcIPs, &lastUdpSrcFileContent, displayBlockedSrcUdpIPs)
+        updateBlockedTableFromFile(blockUdpDestIPsFile, blockedUdpDestIPs, &lastUdpDestFileContent, displayBlockedDestUdpIPs)
+        updateBlockedPortsTableFromFile(blockUdpSrcSrcPortsFile, blockedUdpSrcSrcPorts, &lastUdpSrcSrcPortsFileContent, displayBlockedUdpSrcSrcPorts)
+        updateBlockedPortsTableFromFile(blockUdpSrcDestPortsFile, blockedUdpSrcDestPorts, &lastUdpSrcDestPortsFileContent, displayBlockedUdpSrcDestPorts)
+        updateBlockedPortsTableFromFile(blockUdpDestSrcPortsFile, blockedUdpDestSrcPorts, &lastUdpDestSrcPortsFileContent, displayBlockedUdpDestSrcPorts)
+        updateBlockedPortsTableFromFile(blockUdpDestDestPortsFile, blockedUdpDestDestPorts, &lastUdpDestDestPortsFileContent, displayBlockedUdpDestDestPorts)
         //TCP
-        blockTcpSrcIPs, err := readTcpSrcIPsFromFile(blockTcpSrcIPsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileTcpSrcContent := strings.Join(blockTcpSrcIPs, "\n")
-
-        if fileTcpSrcContent != lastTcpSrcFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedTcpSrcIPs := bpf.NewTable(module.TableId("blocked_tcp_src_ips"), module)
-            clearTable(blockedTcpSrcIPs) // Clear the existing entries
-            for _, ip := range blockTcpSrcIPs {
-                if parsedIP := net.ParseIP(ip); parsedIP != nil {
-                    blockedTcpSrcIPs.Set(parsedIP.To4(), []byte{0})
-                }
-            }
-            lastTcpSrcFileContent = fileTcpSrcContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedSrcTcpIPs(blockTcpSrcIPsFile)
-        }
-
-        blockTcpDestIPs, err := readTcpDestIPsFromFile(blockTcpDestIPsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileTcpDestContent := strings.Join(blockTcpDestIPs, "\n")
-
-        if fileTcpDestContent != lastTcpDestFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedTcpDestIPs := bpf.NewTable(module.TableId("blocked_tcp_dest_ips"), module)
-            clearTable(blockedTcpDestIPs) // Clear the existing entries
-            for _, ip := range blockTcpDestIPs {
-                if parsedIP := net.ParseIP(ip); parsedIP != nil {
-                    blockedTcpDestIPs.Set(parsedIP.To4(), []byte{0})
-                }
-            }
-            lastTcpDestFileContent = fileTcpDestContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedDestTcpIPs(blockTcpDestIPsFile)
-        }
-
-        blockTcpSrcSrcPorts, err := readTcpSrcSrcPortsFromFile(blockTcpSrcSrcPortsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileTcpSrcSrcPortsContent := strings.Join(blockTcpSrcSrcPorts, "\n")
-
-        if fileTcpSrcSrcPortsContent != lastTcpSrcSrcPortsFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedTcpSrcSrcPorts := bpf.NewTable(module.TableId("blocked_tcp_src_src_ports"), module)
-            clearTable(blockedTcpSrcSrcPorts) // Clear the existing entries
-            for _, port := range blockTcpSrcSrcPorts {
-                    blockedTcpSrcSrcPorts.Set([]byte(port), []byte{0})
-            }
-            lastTcpSrcSrcPortsFileContent = fileTcpSrcSrcPortsContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedTcpSrcSrcPorts(blockTcpSrcSrcPortsFile)
-        }
-
-        blockTcpSrcDestPorts, err := readTcpSrcDestPortsFromFile(blockTcpSrcDestPortsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileTcpSrcDestPortsContent := strings.Join(blockTcpSrcDestPorts, "\n")
-
-        if fileTcpSrcDestPortsContent != lastTcpSrcDestPortsFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedTcpSrcDestPorts := bpf.NewTable(module.TableId("blocked_tcp_src_dest_ports"), module)
-            clearTable(blockedTcpSrcDestPorts) // Clear the existing entries
-            for _, port := range blockTcpSrcDestPorts {
-                    blockedTcpSrcDestPorts.Set([]byte(port), []byte{0})
-            }
-            lastTcpSrcDestPortsFileContent = fileTcpSrcDestPortsContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedTcpSrcDestPorts(blockTcpSrcDestPortsFile)
-        }
-
-        blockTcpDestSrcPorts, err := readTcpDestSrcPortsFromFile(blockTcpDestSrcPortsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileTcpDestSrcPortsContent := strings.Join(blockTcpDestSrcPorts, "\n")
-
-        if fileTcpDestSrcPortsContent != lastTcpDestSrcPortsFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedTcpDestSrcPorts := bpf.NewTable(module.TableId("blocked_tcp_dest_src_ports"), module)
-            clearTable(blockedTcpDestSrcPorts) // Clear the existing entries
-            for _, port := range blockTcpDestSrcPorts {
-                    blockedTcpDestSrcPorts.Set([]byte(port), []byte{0})
-            }
-            lastTcpDestSrcPortsFileContent = fileTcpDestSrcPortsContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedTcpDestSrcPorts(blockTcpDestSrcPortsFile)
-        }
-
-        blockTcpDestDestPorts, err := readTcpDestDestPortsFromFile(blockTcpDestDestPortsFile)
-        if err != nil {
-            fmt.Fprintf(os.Stderr, "Failed to read IP addresses from file: %v\n", err)
-            os.Exit(1)
-        }
-
-        fileTcpDestDestPortsContent := strings.Join(blockTcpDestDestPorts, "\n")
-
-        if fileTcpDestDestPortsContent != lastTcpDestDestPortsFileContent {
-            // Content of the file has changed, update the BPF table
-            blockedTcpDestDestPorts := bpf.NewTable(module.TableId("blocked_tcp_dest_dest_ports"), module)
-            clearTable(blockedTcpDestDestPorts) // Clear the existing entries
-            for _, port := range blockTcpDestDestPorts {
-                    blockedTcpDestDestPorts.Set([]byte(port), []byte{0})
-            }
-            lastTcpDestDestPortsFileContent = fileTcpDestDestPortsContent
-
-            // Display the updated blocked IP addresses
-            displayBlockedTcpDestDestPorts(blockTcpDestDestPortsFile)
-        }
+        updateBlockedTableFromFile(blockTcpSrcIPsFile, blockedTcpSrcIPs, &lastTcpSrcFileContent, displayBlockedSrcTcpIPs)
+        updateBlockedTableFromFile(blockTcpDestIPsFile, blockedTcpDestIPs, &lastTcpDestFileContent, displayBlockedDestTcpIPs)
+        updateBlockedPortsTableFromFile(blockTcpSrcSrcPortsFile, blockedTcpSrcSrcPorts, &lastTcpSrcSrcPortsFileContent, displayBlockedTcpSrcSrcPorts)
+        updateBlockedPortsTableFromFile(blockTcpSrcDestPortsFile, blockedTcpSrcDestPorts, &lastTcpSrcDestPortsFileContent, displayBlockedTcpSrcDestPorts)
+        updateBlockedPortsTableFromFile(blockTcpDestSrcPortsFile, blockedTcpDestSrcPorts, &lastTcpDestSrcPortsFileContent, displayBlockedTcpDestSrcPorts)
+        updateBlockedPortsTableFromFile(blockTcpDestDestPortsFile, blockedTcpDestDestPorts, &lastTcpDestDestPortsFileContent, displayBlockedTcpDestDestPorts)
 
         select {
         case <-sig:
@@ -655,297 +377,57 @@ func main() {
 
 //ICMP
 func readIcmpSrcIPsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockIcmpSrcIPs []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockIcmpSrcIPs = append(blockIcmpSrcIPs, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockIcmpSrcIPs, nil
+    return readIPsFromFile(filePath)
 }
 
 func readIcmpDestIPsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockIcmpDestIPs []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockIcmpDestIPs = append(blockIcmpDestIPs, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockIcmpDestIPs, nil
+    return readIPsFromFile(filePath)
 }
 //UDP
 func readUdpSrcIPsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockUdpSrcIPs []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockUdpSrcIPs = append(blockUdpSrcIPs, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockUdpSrcIPs, nil
+    return readIPsFromFile(filePath)
 }
 
 func readUdpDestIPsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockUdpDestIPs []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockUdpDestIPs = append(blockUdpDestIPs, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockUdpDestIPs, nil
+    return readIPsFromFile(filePath)
 }
-
 func readUdpSrcSrcPortsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockUdpSrcSrcPorts []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockUdpSrcSrcPorts = append(blockUdpSrcSrcPorts, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockUdpSrcSrcPorts, nil
+    return readPortsFromFile(filePath)
 }
 
 func readUdpSrcDestPortsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockUdpSrcDestPorts []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockUdpSrcDestPorts = append(blockUdpSrcDestPorts, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockUdpSrcDestPorts, nil
+    return readPortsFromFile(filePath)
 }
 
 func readUdpDestSrcPortsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockUdpDestSrcPorts []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockUdpDestSrcPorts = append(blockUdpDestSrcPorts, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockUdpDestSrcPorts, nil
+    return readPortsFromFile(filePath)
 }
 
 func readUdpDestDestPortsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockUdpDestDestPorts []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockUdpDestDestPorts = append(blockUdpDestDestPorts, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockUdpDestDestPorts, nil
+    return readPortsFromFile(filePath)
 }
 //TCP
 func readTcpSrcIPsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockTcpSrcIPs []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockTcpSrcIPs = append(blockTcpSrcIPs, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockTcpSrcIPs, nil
+    return readIPsFromFile(filePath)
 }
 
 func readTcpDestIPsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockTcpDestIPs []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockTcpDestIPs = append(blockTcpDestIPs, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockTcpDestIPs, nil
+    return readIPsFromFile(filePath)
 }
-
 func readTcpSrcSrcPortsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockTcpSrcSrcPorts []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockTcpSrcSrcPorts = append(blockTcpSrcSrcPorts, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockTcpSrcSrcPorts, nil
+    return readPortsFromFile(filePath)
 }
 
 func readTcpSrcDestPortsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockTcpSrcDestPorts []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockTcpSrcDestPorts = append(blockTcpSrcDestPorts, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockTcpSrcDestPorts, nil
+    return readPortsFromFile(filePath)
 }
 
 func readTcpDestSrcPortsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockTcpDestSrcPorts []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockTcpDestSrcPorts = append(blockTcpDestSrcPorts, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockTcpDestSrcPorts, nil
+    return readPortsFromFile(filePath)
 }
 
 func readTcpDestDestPortsFromFile(filePath string) ([]string, error) {
-    file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    var blockTcpDestDestPorts []string
-
-    scanner := bufio.NewScanner(file)
-    for scanner.Scan() {
-        blockTcpDestDestPorts = append(blockTcpDestDestPorts, scanner.Text())
-    }
-
-    if err := scanner.Err(); err != nil {
-        return nil, err
-    }
-
-    return blockTcpDestDestPorts, nil
+    return readPortsFromFile(filePath)
 }
 //////////////////////////////////////////////
 func computeFileHash(filePath string) string {
@@ -1154,4 +636,115 @@ func displayBlockedTcpDestDestPorts(filePath string) {
     for _, ports := range blockTcpDestDestPorts {
         fmt.Println(ports)
     }
+}
+
+func updateBlockedTableFromFile(filePath string, table *bpf.Table, lastContent *string, displayFunc func(string)) {
+    items, err := readItemsFromFile(filePath)
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Failed to read items from file: %v\n", err)
+        os.Exit(1)
+    }
+
+    fileContent := strings.Join(items, "\n")
+
+    if fileContent != *lastContent {
+        // Content of the file has changed, update the BPF table
+        clearTable(table) // Clear the existing entries
+        for _, item := range items {
+            if parsedItem := net.ParseIP(item); parsedItem != nil {
+                key := parsedItem.To4()
+                table.Set(key, []byte{0})
+            }
+        }
+        *lastContent = fileContent
+
+        // Display the updated blocked items
+        displayFunc(filePath)
+    }
+}
+
+func readItemsFromFile(filePath string) ([]string, error) {
+    file, err := os.Open(filePath)
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
+
+    var items []string
+
+    scanner := bufio.NewScanner(file)
+    for scanner.Scan() {
+        items = append(items, scanner.Text())
+    }
+
+    if err := scanner.Err(); err != nil {
+        return nil, err
+    }
+
+    return items, nil
+}
+
+func updateBlockedPortsTableFromFile(filePath string, table *bpf.Table, lastContent *string, displayFunc func(string)) {
+    ports, err := readPortsFromFile(filePath)
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Failed to read ports from file: %v\n", err)
+        os.Exit(1)
+    }
+
+    fileContent := strings.Join(ports, "\n")
+
+    if fileContent != *lastContent {
+        // Content of the file has changed, update the BPF table
+        clearTable(table) // Clear the existing entries
+        for _, port := range ports {
+            key := []byte(port)
+            table.Set(key, []byte{0})
+        }
+        *lastContent = fileContent
+
+        // Display the updated blocked ports
+        displayFunc(filePath)
+    }
+}
+
+func readPortsFromFile(filePath string) ([]string, error) {
+    file, err := os.Open(filePath)
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
+
+    var ports []string
+
+    scanner := bufio.NewScanner(file)
+    for scanner.Scan() {
+        ports = append(ports, scanner.Text())
+    }
+
+    if err := scanner.Err(); err != nil {
+        return nil, err
+    }
+
+    return ports, nil
+}
+
+func readIPsFromFile(filePath string) ([]string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var blockIPs []string
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		blockIPs = append(blockIPs, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return blockIPs, nil
 }
