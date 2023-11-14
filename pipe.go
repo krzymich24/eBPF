@@ -49,35 +49,49 @@ func ConvertDecimalToIPv4TCP(decimalIP uint32) string {
 
 // ParseAndModifyLine parses the input line and modifies it according to the desired format
 func ParseAndModifyLine(line string) (string, error) {
-	// Define a regular expression to extract relevant information for ICMP, UDP, and TCP
-	re := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Pass (ICMP|UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
+	// Define regular expressions for both IP and port patterns
+	reIP := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Pass (ICMP|UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
+	rePort := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Pass (UDP|TCP) packet from source port: (\d+), to destination port: (\d+)`)
 
-	// Find matches in the input line
-	matches := re.FindStringSubmatch(line)
-	if len(matches) != 5 {
+	// Find matches in the input line for both expressions
+	matchesIP := reIP.FindStringSubmatch(line)
+	matchesPort := rePort.FindStringSubmatch(line)
+
+	// Check which expression has valid matches
+	var matches []string
+	if len(matchesIP) == 5 {
+		matches = matchesIP
+	} else if len(matchesPort) == 5 {
+		matches = matchesPort
+	} else {
 		return "", fmt.Errorf("invalid line format: %s", line)
 	}
 
 	// Extract matched values
 	timestampStr := matches[1]
 	protocol := matches[2]
-	sourceIP, _ := strconv.ParseUint(matches[3], 10, 32)
-	destinationIP, _ := strconv.ParseUint(matches[4], 10, 32)
+	var sourceStr, destinationStr string
 
-	// Convert decimal IPs to dotted-decimal notation based on the protocol
-	var sourceIPStr, destinationIPStr string
-	switch protocol {
-	case "ICMP":
-		sourceIPStr = ConvertDecimalToIPv4(uint32(sourceIP))
-		destinationIPStr = ConvertDecimalToIPv4(uint32(destinationIP))
-	case "UDP":
-		sourceIPStr = ConvertDecimalToIPv4UDP(uint32(sourceIP))
-		destinationIPStr = ConvertDecimalToIPv4UDP(uint32(destinationIP))
-	case "TCP":
-		sourceIPStr = ConvertDecimalToIPv4TCP(uint32(sourceIP))
-		destinationIPStr = ConvertDecimalToIPv4TCP(uint32(destinationIP))
-	default:
-		return "", fmt.Errorf("unsupported protocol: %s", protocol)
+	if len(matchesIP) == 5 {
+		sourceIP, _ := strconv.ParseUint(matches[3], 10, 32)
+		destinationIP, _ := strconv.ParseUint(matches[4], 10, 32)
+
+		switch protocol {
+		case "ICMP":
+			sourceStr = ConvertDecimalToIPv4(uint32(sourceIP))
+			destinationStr = ConvertDecimalToIPv4(uint32(destinationIP))
+		case "UDP":
+			sourceStr = ConvertDecimalToIPv4UDP(uint32(sourceIP))
+			destinationStr = ConvertDecimalToIPv4UDP(uint32(destinationIP))
+		case "TCP":
+			sourceStr = ConvertDecimalToIPv4TCP(uint32(sourceIP))
+			destinationStr = ConvertDecimalToIPv4TCP(uint32(destinationIP))
+		default:
+			return "", fmt.Errorf("unsupported protocol: %s", protocol)
+		}
+	} else {
+		sourceStr = matches[3]
+		destinationStr = matches[4]
 	}
 
 	// Parse the timestamp
@@ -91,10 +105,16 @@ func ParseAndModifyLine(line string) (string, error) {
 	timestampFormatted := timestampTime.Format("15:04:05 02-Jan-2006")
 
 	// Format the output line with corrected date format
-	outputLine := fmt.Sprintf("%s: Pass %s packets from source IP: %s, to destination IP: %s", timestampFormatted, protocol, sourceIPStr, destinationIPStr)
+	var outputLine string
+	if len(matchesIP) == 5 {
+		outputLine = fmt.Sprintf("%s: Pass %s packet from source IP: %s, to destination IP: %s", timestampFormatted, protocol, sourceStr, destinationStr)
+	} else {
+		outputLine = fmt.Sprintf("%s: Pass %s packet from source port: %s, to destination port: %s", timestampFormatted, protocol, sourceStr, destinationStr)
+	}
 
 	return outputLine, nil
 }
+
 
 
 // reverseStringSlice reverses the order of elements in a string slice

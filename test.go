@@ -193,7 +193,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
             dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
             
             bpf_trace_printk("%u: Pass TCP packet from source IP: %u, to destination IP: %u\n", timestamp, src_ip, dest_ip);
-            bpf_trace_printk("%u: Pass TCP packet from source port: %u to destination port: %u\n", timestamp, src_port, dest_port);
+            bpf_trace_printk("%u: Pass TCP packet from source port: %u, to destination port: %u\n", timestamp, src_port, dest_port);
             return XDP_PASS;
 
         } else if (index == 17 ) {
@@ -262,7 +262,7 @@ int xdp_prog1(struct CTXTYPE *ctx) { //eBPF program
             dest_port = ntohs(dest_port); // Convert to host byte order if necessary.
 
             bpf_trace_printk("%u: Pass UDP packet from source IP: %u, to destination IP: %u\n", timestamp, src_ip, dest_ip);
-            bpf_trace_printk("%u: Pass UDP packet from source port: %u to destination port: %u\n", timestamp, src_port, dest_port);
+            bpf_trace_printk("%u: Pass UDP packet from source port: %u, to destination port: %u\n", timestamp, src_port, dest_port);
             return XDP_PASS;
         } else {
             bpf_trace_printk("%u: Pass diffrent packet", timestamp);
