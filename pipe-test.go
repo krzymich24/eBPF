@@ -121,7 +121,7 @@ func ParseAndModifyLine(line string) (string, error) {
 		currentTime := time.Now()
 
 		// Format the current time as HH:MM:SS 02-Jan-2006
-		currentTimeFormatted := currentTime.Format("15:04:05 02-Jan-2006")
+		currentTimeFormatted := currentTime.Format("15:04:05.999 02-01-2006")
 
 		// Format the output line with corrected date format and current time
 		var outputLine string
