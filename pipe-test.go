@@ -53,23 +53,32 @@ func ParseAndModifyLine(line string) (string, error) {
 	reIP := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Pass (ICMP|UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
 	rePort := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Pass (UDP|TCP) packet from source port: (\d+), to destination port: (\d+)`)
 	reICMP := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Blocked (ICMP) packet from source IP: (\d+), to destination IP: (\d+), blocked by (source|destination) IP`)
+	reBlockedIP := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Blocked (UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
+	reBlockedPort := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Blocked by (source|destination) IP: (\d+), (source|destination) port: (\d+)`)
 
 	// Find matches in the input line for both expressions
 	matchesIP := reIP.FindStringSubmatch(line)
 	matchesPort := rePort.FindStringSubmatch(line)
 	matchesIcmp := reICMP.FindStringSubmatch(line)
+	matchesBlockedIP := reBlockedIP.FindStringSubmatch(line)
+	matchesBlockedPort := reBlockedPort.FindStringSubmatch(line)
 
 	// Check if the line matches any of the patterns
-	if len(matchesIP) != 0 || len(matchesPort) != 0 || len(matchesIcmp) != 0 {
+	if len(matchesIP) != 0 || len(matchesPort) != 0 || len(matchesIcmp) != 0 || len(matchesBlockedIP) != 0 || len(matchesBlockedPort) != 0 {
 		// Check which expression has valid matches
 		var matches []string
-		if len(matchesIP) == 5 {
+		switch {
+		case len(matchesIP) == 5:
 			matches = matchesIP
-		} else if len(matchesPort) == 5 {
+		case len(matchesPort) == 5:
 			matches = matchesPort
-		} else if len(matchesIcmp) == 6 {
+		case len(matchesIcmp) == 6:
 			matches = matchesIcmp
-		} else {
+		case len(matchesBlockedIP) == 5:
+			matches = matchesBlockedIP
+		case len(matchesBlockedPort) == 5:
+			matches = matchesBlockedPort
+		default:
 			return "", fmt.Errorf("invalid line format: %s", line)
 		}
 
@@ -104,8 +113,8 @@ func ParseAndModifyLine(line string) (string, error) {
 			return "", fmt.Errorf("unsupported protocol: %s", protocol)
 		}
 
-		// If it's an ICMP match, parse the blockedby field
-		if len(matchesIcmp) == 6 {
+		// If it's an ICMP or blocked IP match, parse the blockedby field
+		if len(matchesIcmp) == 6 || len(matchesBlockedIP) == 5 {
 			blockedby = matches[5]
 		}
 
@@ -126,11 +135,18 @@ func ParseAndModifyLine(line string) (string, error) {
 
 		// Format the output line with corrected date format
 		var outputLine string
-		if len(matchesIP) == 5 {
+		switch {
+		case len(matchesIP) == 5:
 			outputLine = fmt.Sprintf("%s: Pass %s packet from source IP: %s, to destination IP: %s", timestampFormatted, protocol, sourceStr, destinationStr)
-		} else if len(matchesIcmp) == 6 {
+		case len(matchesIcmp) == 6:
 			outputLine = fmt.Sprintf("%s: Blocked %s packet from source IP: %s, to destination IP: %s, blocked by %s IP", timestampFormatted, protocol, sourceStr, destinationStr, blockedby)
-		} else {
+		case len(matchesBlockedIP) == 5:
+			outputLine = fmt.Sprintf("%s: Blocked %s packet from source IP: %s, to destination IP: %s", timestampFormatted, protocol, sourceStr, destinationStr)
+		case len(matchesBlockedPort) == 5:
+			blockedby = matchesBlockedPort[1]
+			port := matchesBlockedPort[4]
+			outputLine = fmt.Sprintf("%s: Blocked by %s IP: %s, %s port: %s", timestampFormatted, blockedby, sourceStr, blockedby, port)
+		default:
 			outputLine = fmt.Sprintf("%s: Pass %s packet from source port: %s, to destination port: %s", timestampFormatted, protocol, sourceStr, destinationStr)
 		}
 
@@ -189,7 +205,7 @@ func readFromTracePipeAndSaveToFile(outputFilePath string, wg *sync.WaitGroup, d
 			default:
 				if scanner.Scan() {
 					line := scanner.Text()
-					//fmt.Println(line) // Optionally, you can print the original line to the console
+					fmt.Println(line) // Optionally, you can print the original line to the console
 
 					// Parse and modify the line
 					modifiedLine, err := ParseAndModifyLine(line)
