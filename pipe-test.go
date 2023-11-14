@@ -50,11 +50,11 @@ func ConvertDecimalToIPv4TCP(decimalIP uint32) string {
 // ParseAndModifyLine parses the input line and modifies it according to the desired format
 func ParseAndModifyLine(line string) (string, error) {
 	// Define regular expressions for both IP and port patterns
-	reIP := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Pass (ICMP|UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
-	rePort := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Pass (UDP|TCP) packet from source port: (\d+), to destination port: (\d+)`)
-	reICMP := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Blocked (ICMP) packet from source IP: (\d+), to destination IP: (\d+), blocked by (source|destination) IP`)
-	reBlockedIP := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Blocked (UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
-	reBlockedPort := regexp.MustCompile(`.*bpf_trace_printk: (\d+): Blocked by (source|destination) IP: (\d+), (source|destination) port: (\d+)`)
+	reIP := regexp.MustCompile(`.*bpf_trace_printk: Pass (ICMP|UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
+	rePort := regexp.MustCompile(`.*bpf_trace_printk: Pass (UDP|TCP) packet from source port: (\d+), to destination port: (\d+)`)
+	reICMP := regexp.MustCompile(`.*bpf_trace_printk: Blocked (ICMP) packet from source IP: (\d+), to destination IP: (\d+), blocked by (source|destination) IP`)
+	reBlockedIP := regexp.MustCompile(`.*bpf_trace_printk: Blocked (UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
+	reBlockedPort := regexp.MustCompile(`.*bpf_trace_printk: Blocked by (source|destination) IP: (\d+), (source|destination) port: (\d+)`)
 
 	// Find matches in the input line for both expressions
 	matchesIP := reIP.FindStringSubmatch(line)
@@ -68,32 +68,31 @@ func ParseAndModifyLine(line string) (string, error) {
 		// Check which expression has valid matches
 		var matches []string
 		switch {
-		case len(matchesIP) == 5:
+		case len(matchesIP) == 4:
 			matches = matchesIP
-		case len(matchesPort) == 5:
+		case len(matchesPort) == 4:
 			matches = matchesPort
-		case len(matchesIcmp) == 6:
+		case len(matchesIcmp) == 5:
 			matches = matchesIcmp
-		case len(matchesBlockedIP) == 5:
+		case len(matchesBlockedIP) == 4:
 			matches = matchesBlockedIP
-		case len(matchesBlockedPort) == 5:
+		case len(matchesBlockedPort) == 4:
 			matches = matchesBlockedPort
 		default:
 			return "", fmt.Errorf("invalid line format: %s", line)
 		}
 
 		// Extract matched values
-		timestampStr := matches[1]
-		protocol := matches[2]
+		protocol := matches[1]
 		var sourceStr, destinationStr, blockedby string
 
 		// Parse source and destination IP addresses
-		sourceIP, err := strconv.ParseUint(matches[3], 10, 32)
+		sourceIP, err := strconv.ParseUint(matches[2], 10, 32)
 		if err != nil {
 			return "", fmt.Errorf("error parsing source IP: %v", err)
 		}
 
-		destinationIP, err := strconv.ParseUint(matches[4], 10, 32)
+		destinationIP, err := strconv.ParseUint(matches[3], 10, 32)
 		if err != nil {
 			return "", fmt.Errorf("error parsing destination IP: %v", err)
 		}
@@ -114,40 +113,31 @@ func ParseAndModifyLine(line string) (string, error) {
 		}
 
 		// If it's an ICMP or blocked IP match, parse the blockedby field
-		if len(matchesIcmp) == 6 || len(matchesBlockedIP) == 5 {
-			blockedby = matches[5]
+		if len(matchesIcmp) == 5 || len(matchesBlockedIP) == 4 {
+			blockedby = matches[4]
 		}
 
-		// Parse the timestamp
-		timestampInt, err := strconv.ParseInt(timestampStr, 10, 64)
-		if err != nil {
-			return "", fmt.Errorf("error parsing timestamp: %v", err)
-		}
+		// Get the current time
+		currentTime := time.Now()
 
-		// Ensure the timestamp is non-negative
-		if timestampInt < 0 {
-			return "", fmt.Errorf("invalid timestamp value: %s", timestampStr)
-		}
+		// Format the current time as HH:MM:SS 02-Jan-2006
+		currentTimeFormatted := currentTime.Format("15:04:05 02-Jan-2006")
 
-		// Convert timestamp to user-readable format
-		timestampTime := time.Unix(timestampInt, 0)
-		timestampFormatted := timestampTime.Format("15:04:05 02-Jan-2006")
-
-		// Format the output line with corrected date format
+		// Format the output line with corrected date format and current time
 		var outputLine string
 		switch {
-		case len(matchesIP) == 5:
-			outputLine = fmt.Sprintf("%s: Pass %s packet from source IP: %s, to destination IP: %s", timestampFormatted, protocol, sourceStr, destinationStr)
-		case len(matchesIcmp) == 6:
-			outputLine = fmt.Sprintf("%s: Blocked %s packet from source IP: %s, to destination IP: %s, blocked by %s IP", timestampFormatted, protocol, sourceStr, destinationStr, blockedby)
-		case len(matchesBlockedIP) == 5:
-			outputLine = fmt.Sprintf("%s: Blocked %s packet from source IP: %s, to destination IP: %s", timestampFormatted, protocol, sourceStr, destinationStr)
-		case len(matchesBlockedPort) == 5:
-			blockedby = matchesBlockedPort[1]
-			port := matchesBlockedPort[4]
-			outputLine = fmt.Sprintf("%s: Blocked by %s IP: %s, %s port: %s", timestampFormatted, blockedby, sourceStr, blockedby, port)
+		case len(matchesIP) == 4:
+			outputLine = fmt.Sprintf("%s: Pass %s packet from source IP: %s, to destination IP: %s", currentTimeFormatted, protocol, sourceStr, destinationStr)
+		case len(matchesIcmp) == 5:
+			outputLine = fmt.Sprintf("%s: Blocked %s packet from source IP: %s, to destination IP: %s, blocked by %s IP", currentTimeFormatted, protocol, sourceStr, destinationStr, blockedby)
+		case len(matchesBlockedIP) == 4:
+			outputLine = fmt.Sprintf("%s: Blocked %s packet from source IP: %s, to destination IP: %s", currentTimeFormatted, protocol, sourceStr, destinationStr)
+		case len(matchesBlockedPort) == 4:
+			blockedby = matchesBlockedPort[0]
+			port := matchesBlockedPort[3]
+			outputLine = fmt.Sprintf("%s: Blocked by %s IP: %s, %s port: %s", currentTimeFormatted, blockedby, sourceStr, blockedby, port)
 		default:
-			outputLine = fmt.Sprintf("%s: Pass %s packet from source port: %s, to destination port: %s", timestampFormatted, protocol, sourceStr, destinationStr)
+			outputLine = fmt.Sprintf("%s: Pass %s packet from source port: %s, to destination port: %s", currentTimeFormatted, protocol, sourceStr, destinationStr)
 		}
 
 		return outputLine, nil
