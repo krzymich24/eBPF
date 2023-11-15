@@ -425,6 +425,7 @@ func readUdpSrcIPsFromFile(filePath string) ([]string, error) {
 func readUdpDestIPsFromFile(filePath string) ([]string, error) {
     return readIPsFromFile(filePath)
 }
+
 func readUdpSrcSrcPortsFromFile(filePath string) ([]string, error) {
     return readPortsFromFile(filePath)
 }
@@ -448,6 +449,7 @@ func readTcpSrcIPsFromFile(filePath string) ([]string, error) {
 func readTcpDestIPsFromFile(filePath string) ([]string, error) {
     return readIPsFromFile(filePath)
 }
+
 func readTcpSrcSrcPortsFromFile(filePath string) ([]string, error) {
     return readPortsFromFile(filePath)
 }
@@ -671,7 +673,7 @@ func displayBlockedTcpDestDestPorts(filePath string) {
         fmt.Println(ports)
     }
 }
-
+///////////////////////////////////////
 func updateBlockedTableFromFile(filePath string, table *bpf.Table, lastContent *string, displayFunc func(string)) {
     items, err := readItemsFromFile(filePath)
     if err != nil {
