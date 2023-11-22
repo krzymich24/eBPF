@@ -40,8 +40,13 @@ struct rule {
     int32_t destination;
 };
 
+struct rulekey {
+    int32_t index;
+    int32_t protocol;
+};
+
 // Change from BPF_HASH to BPF_ARRAY
-BPF_ARRAY(rule_map, struct rule, 3);
+BPF_ARRAY(rule_map, struct rule, 0);
 BPF_HASH(rule_keys, int, int); 
 
 static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
@@ -105,6 +110,9 @@ int xdp_prog1(struct CTXTYPE *ctx) {
             struct iphdr *iph = data + nh_off;
             u32 src_ip = iph->saddr;
 			u32 dest_ip = iph->daddr;
+
+            struct rulekey *rulekeys = rule_keys.lookup(&protocol_number);
+            bpf_trace_printk("Looking up for keys: %d\n", rulekeys);
 
             bpf_trace_printk("Looking up Protocol: %d\n", protocol_number);
             struct rule *rule_entry = rule_map.lookup(&protocol_number);
