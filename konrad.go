@@ -47,7 +47,7 @@ struct rulekey {
 
 // Change from BPF_HASH to BPF_ARRAY
 BPF_ARRAY(rule_map, struct rule, 3);
-BPF_HASH(rule_keys, int32_t, int32_t); 
+BPF_HASH(rule_keys, int, int); 
 
 static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
     struct iphdr *iph = data + nh_off;
@@ -111,44 +111,36 @@ int xdp_prog1(struct CTXTYPE *ctx) {
             u32 src_ip = iph->saddr;
 			u32 dest_ip = iph->daddr;
 
-			// Declare rule_entry outside the if block
-            struct rule *rule_entry;
+            // Looking up the key in the rule_keys hash based on the protocol number
+            int *value = rule_keys.lookup(&protocol_number);
 
-            // Iterate over all rules for the specific protocol
-            struct rulekey rule_key = {.index = protocol_number};
-            int *value;
+            if (value) {
+                // Found a matching value in the hash
+                bpf_trace_printk("Value found in rule_keys for protocol %d: %d\n", protocol_number, *value);
+            } else {
+                // Value not found in the hash
+                bpf_trace_printk("Value not found in rule_keys for protocol %d\n", protocol_number);
+            }
 
-            // Iterate through rules
-            for (int i = 0; i < 3; i++) {
-                rule_key.index = i;
-                value = rule_keys.lookup(&rule_key);
-                if (value && *value == 1) {
-                    // Found a matching value in the hash
-                    bpf_trace_printk("Value found in rule_keys for index %d: %d\n", i, *value);
-
-                    // Look up the rule in the rule_map
-                    rule_entry = rule_map.lookup(&rule_key);
-                    bpf_trace_printk("rule_entry: %u\n", rule_entry);
-
-					if (rule_entry) {
-						bpf_trace_printk("Entered rule: %u\n", rule_entry);
-						bpf_trace_printk("Source IP: %u, Destination IP: %u\n", rule_entry->source, rule_entry->destination);
-						if (src_ip == rule_entry->source && dest_ip == rule_entry->destination){
-							bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
-							if (rule_entry->action == 1) {
-								bpf_trace_printk("Blocked ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
-								return XDP_DROP;
-							}
-						}else{
-							bpf_trace_printk("Checked rule:%u. Checking next rule: %u\n", i ,i+1);
-						}
-					}
+            bpf_trace_printk("Looking up Protocol: %d\n", protocol_number);
+            struct rule *rule_entry = rule_map.lookup(&protocol_number);
+            bpf_trace_printk("rule_entry: %u\n", rule_entry);
+            if (rule_entry) {
+				bpf_trace_printk("Entered rule: %u\n", rule_entry);
+                if (src_ip == rule_entry->source && dest_ip == rule_entry->destination){
+					bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+					if (rule_entry->action == 1) {
+                        bpf_trace_printk("Blocked ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                        return XDP_DROP;
+                    } else {
+                        bpf_trace_printk("Passed ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                        return XDP_PASS;
+                    }
 				}else{
 					bpf_trace_printk("No matching src and dest. Passed ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
-					return XDP_PASS;
+                    return XDP_PASS;
 				}
-			}
-
+            }
         } else if (protocol_number == IPPROTO_TCP) {
 			bpf_trace_printk("IPPROTO_TCP");
             struct iphdr *iph = data + nh_off;

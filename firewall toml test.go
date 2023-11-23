@@ -40,8 +40,14 @@ struct rule {
     int32_t destination;
 };
 
+struct rulekey {
+    int32_t index;
+    int32_t protocol;
+};
+
 // Change from BPF_HASH to BPF_ARRAY
 BPF_ARRAY(rule_map, struct rule, 3);
+BPF_HASH(rule_keys, int32_t, int32_t); 
 
 static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
     struct iphdr *iph = data + nh_off;
@@ -105,25 +111,44 @@ int xdp_prog1(struct CTXTYPE *ctx) {
             u32 src_ip = iph->saddr;
 			u32 dest_ip = iph->daddr;
 
-            bpf_trace_printk("Looking up Protocol: %d\n", protocol_number);
-            struct rule *rule_entry = rule_map.lookup(&protocol_number);
-            bpf_trace_printk("rule_entry: %u\n", rule_entry);
-            if (rule_entry) {
-				bpf_trace_printk("Entered rule: %u\n", rule_entry);
-                if (src_ip == rule_entry->source && dest_ip == rule_entry->destination){
-					bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
-					if (rule_entry->action == 1) {
-                        bpf_trace_printk("Blocked ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
-                        return XDP_DROP;
-                    } else {
-                        bpf_trace_printk("Passed ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
-                        return XDP_PASS;
-                    }
+			// Declare rule_entry outside the if block
+            struct rule *rule_entry;
+
+            // Iterate over all rules for the specific protocol
+            struct rulekey rule_key = {.index = protocol_number};
+            int *value;
+
+            // Iterate through rules
+            for (int i = 0; i < 3; i++) {
+                rule_key.index = i;
+                value = rule_keys.lookup(&rule_key);
+                if (value && *value == 1) {
+                    // Found a matching value in the hash
+                    bpf_trace_printk("Value found in rule_keys for index %d: %d\n", i, *value);
+
+                    // Look up the rule in the rule_map
+                    rule_entry = rule_map.lookup(&rule_key);
+                    bpf_trace_printk("rule_entry: %u\n", rule_entry);
+
+					if (rule_entry) {
+						bpf_trace_printk("Entered rule: %u\n", rule_entry);
+						bpf_trace_printk("Source IP: %u, Destination IP: %u\n", rule_entry->source, rule_entry->destination);
+						if (src_ip == rule_entry->source && dest_ip == rule_entry->destination){
+							bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+							if (rule_entry->action == 1) {
+								bpf_trace_printk("Blocked ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+								return XDP_DROP;
+							}
+						}else{
+							bpf_trace_printk("Checked rule:%u. Checking next rule: %u\n", i ,i+1);
+						}
+					}
 				}else{
 					bpf_trace_printk("No matching src and dest. Passed ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
-                    return XDP_PASS;
+					return XDP_PASS;
 				}
-            }
+			}
+
         } else if (protocol_number == IPPROTO_TCP) {
 			bpf_trace_printk("IPPROTO_TCP");
             struct iphdr *iph = data + nh_off;
@@ -192,6 +217,41 @@ type Rule struct {
     Destination string `toml:"destination"`
 }
 
+// Add the RuleKey struct definition
+type RuleKey struct {
+	Index int32
+}
+
+// Add a function to convert a RuleKey to bytes
+func ruleKeyToBytes(key *RuleKey) []byte {
+	size := int(unsafe.Sizeof(*key))
+	data := (*[1<<30]byte)(unsafe.Pointer(key))[:size:size]
+	buf := make([]byte, size)
+	copy(buf, data)
+	return buf
+}
+
+// Add a function to update the rule_keys BPF table
+func updateRuleKeys(index int32) error {
+	key := &RuleKey{Index: index}
+	bytes := ruleKeyToBytes(key)
+	return ruleKeys.Set(bytes, []byte{})
+}
+
+// Add a function to retrieve all rule keys
+func getAllRuleKeys() ([]*RuleKey, error) {
+	var keys []*RuleKey
+	iter := ruleKeys.Iter()
+	for iter.Next() {
+		keyBytes := iter.Key()
+		var ruleKey RuleKey
+		copy((*[1 << 30]byte)(unsafe.Pointer(&ruleKey))[:], keyBytes)
+		keys = append(keys, &ruleKey)
+	}
+	return keys, nil
+}
+
+
 // convertIPToUint32 converts an IP address string to uint32
 func convertIPToUint32(ipStr string) (uint32, error) {
     //fmt.Printf("Converting IP address %s to uint32\n", ipStr)
@@ -257,7 +317,7 @@ func ruleEntryToBytes(entry *Rule) ([]byte, error) {
 
 
 // updateBPFMapFromToml updates the BPF map with rules from a TOML file.
-func updateBPFMapFromToml(filename string, ruleMap *bcc.Table) error {
+func updateBPFMapFromToml(filename string, ruleMap *bcc.Table, ruleKeys *bcc.Table) error {
     tomlContent, err := ioutil.ReadFile(filename)
     if err != nil {
         return fmt.Errorf("Error reading TOML file: %v", err)
@@ -271,10 +331,11 @@ func updateBPFMapFromToml(filename string, ruleMap *bcc.Table) error {
 
     fmt.Println("Processing rules from TOML file...")
 
-    // Iterate through the rules and update the BPF map
+    // Iterate through the rules and update the BPF maps
     for index, rule := range rulesConfig.Rules {
         // Convert the index to a byte slice
         key := convertIntToBytes(int32(index)) // Convert index to int32
+        protocolKey := convertIntToBytes(int32(rule.Protocol))
 
         // Update the rule entry with IP addresses directly
         ruleMapEntry := &Rule{
@@ -290,10 +351,16 @@ func updateBPFMapFromToml(filename string, ruleMap *bcc.Table) error {
             return fmt.Errorf("Error converting updated rule entry to bytes: %v", err)
         }
 
-        // Insert the updated entry
+        // Insert the updated entry into the ruleMap
         err = ruleMap.Set(key, updatedRuleEntryBytes)
         if err != nil {
             return fmt.Errorf("Error inserting updated entry into BPF map: %v", err)
+        }
+
+        // Insert the key into the ruleKeys map
+        err = ruleKeys.Set(key, protocolKey)
+        if err != nil {
+            return fmt.Errorf("Error inserting key into ruleKeys map: %v", err)
         }
 
         fmt.Printf("Rule %d processed successfully. Key: %v, Entry: %v\n", index, key, updatedRuleEntryBytes)
@@ -303,6 +370,7 @@ func updateBPFMapFromToml(filename string, ruleMap *bcc.Table) error {
 
     return nil
 }
+
 
 func usage() {
     fmt.Printf("Usage: %v <ifdev> <tomlfile>\n", os.Args[0])
@@ -314,6 +382,9 @@ var module *bcc.Module
 
 // BPF_TABLE is used to declare the rule_map BPF array
 var rule_map *bcc.Table
+
+// BPF_TABLE is used to declare the rule_map BPF array
+var ruleKeys *bcc.Table
 
 func main() {
 	start := time.Now()
@@ -340,6 +411,9 @@ func main() {
 	// BPF_TABLE is used to declare the rule_map BPF array
 	rule_map = bcc.NewTable(module.TableId("rule_map"), module)
 
+	// BPF_TABLE is used to declare the rule_map BPF array
+	ruleKeys = bcc.NewTable(module.TableId("rule_keys"), module)
+
 	fn, err := module.Load("xdp_prog1", C.BPF_PROG_TYPE_XDP, 1, 65536)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load xdp prog: %v\n", err)
@@ -352,7 +426,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = updateBPFMapFromToml(tomlFile, rule_map)
+	err = updateBPFMapFromToml(tomlFile, rule_map, ruleKeys)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to update BPF map from TOML: %v\n", err)
 		os.Exit(1)
