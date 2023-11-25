@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 	"unsafe"
 	"net"
@@ -38,6 +39,8 @@ struct rule {
     int32_t protocol;
 	int32_t source;
     int32_t destination;
+    int16_t srcport;
+    int16_t destport;
 };
 
 struct rulekey {
@@ -132,8 +135,10 @@ int xdp_prog1(struct CTXTYPE *ctx) {
 
 					if (rule_entry) {
 						bpf_trace_printk("Entered rule: %u\n", rule_entry);
-						bpf_trace_printk("Source IP: %u, Destination IP: %u\n", rule_entry->source, rule_entry->destination);
-						if (src_ip == rule_entry->source && dest_ip == rule_entry->destination){
+						bpf_trace_printk("IP packet: source IP: %u, destination IP: %u\n", src_ip, dest_ip);
+                        bpf_trace_printk("In rule: source IP: %u, destination IP: %u\n", rule_entry->source, rule_entry->destination);
+
+						if ((rule_entry->source == 0||src_ip == rule_entry->source) && (dest_ip == rule_entry->destination||rule_entry->destination == 0)){
 							bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 							if (rule_entry->action == 1) {
 								bpf_trace_printk("Blocked with rule: %u, ICMP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
@@ -163,6 +168,16 @@ int xdp_prog1(struct CTXTYPE *ctx) {
             u32 src_ip = iph->saddr;
 			u32 dest_ip = iph->daddr;
 
+            // Extract source and destination ports
+            void *transport_header = data + nh_off + sizeof(struct iphdr);
+            if (transport_header + sizeof(struct tcphdr) > data_end) {
+                return rc;
+            }
+
+            struct tcphdr *tcph = transport_header;
+            u16 src_port = ntohs(tcph->source);
+            u16 dest_port = ntohs(tcph->dest);
+
 			// Declare rule_entry outside the if block
             struct rule *rule_entry;
 
@@ -183,9 +198,15 @@ int xdp_prog1(struct CTXTYPE *ctx) {
                     bpf_trace_printk("rule_entry: %u\n", rule_entry);
 
 					if (rule_entry) {
-						bpf_trace_printk("Entered rule: %u\n", rule_entry);
-						bpf_trace_printk("Source IP: %u, Destination IP: %u\n", rule_entry->source, rule_entry->destination);
-						if (src_ip == rule_entry->source && dest_ip == rule_entry->destination){
+						//bpf_trace_printk("Entered rule: %u\n", rule_entry);
+                        //bpf_trace_printk("IP packet:\n");
+						//bpf_trace_printk("Source IP: %u, Destination IP: %u\n", src_ip, dest_ip);
+                        //bpf_trace_printk("Source port: %u, to destination port: %u\n", src_port, dest_port);
+                        //bpf_trace_printk("In rule:\n");
+                        //bpf_trace_printk("Source IP: %u, Destination IP: %u\n", rule_entry->source, rule_entry->destination);
+                        bpf_trace_printk("Source port: %u, to destination port: %u\n", rule_entry->srcport, rule_entry->destport);
+
+						if ((rule_entry->source == 0||src_ip == rule_entry->source) && (dest_ip == rule_entry->destination||rule_entry->destination == 0) && (rule_entry->srcport == 0||src_port == rule_entry->srcport) && (rule_entry->destport == 0 || dest_port == rule_entry->destport)){
 							bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 							if (rule_entry->action == 1) {
 								bpf_trace_printk("Blocked with rule: %u, TCP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
@@ -204,16 +225,26 @@ int xdp_prog1(struct CTXTYPE *ctx) {
 						}
 					}
 				} else if (i == 2){
-                    bpf_trace_printk("No matching rule for src and dest. Passed TCP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                    //bpf_trace_printk("No matching rule for src and dest. Passed TCP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
                     return XDP_PASS;
                 }
 			}
 
 		} else if (protocol_number == IPPROTO_UDP) {
-			bpf_trace_printk("IPPROTO_UDP");
+			//bpf_trace_printk("IPPROTO_UDP");
             struct iphdr *iph = data + nh_off;
             u32 src_ip = iph->saddr;
 			u32 dest_ip = iph->daddr;
+
+            // Extract source and destination ports
+            void *transport_header = data + nh_off + sizeof(struct iphdr);
+            if (transport_header + sizeof(struct tcphdr) > data_end) {
+                return rc;
+            }
+
+            struct tcphdr *tcph = transport_header;
+            u16 src_port = ntohs(tcph->source);
+            u16 dest_port = ntohs(tcph->dest);
 
 			// Declare rule_entry outside the if block
             struct rule *rule_entry;
@@ -228,68 +259,75 @@ int xdp_prog1(struct CTXTYPE *ctx) {
                 value = rule_keys.lookup(&rule_key);
                 if (value && *value == protocol_number) {
                     // Found a matching value in the hash
-                    bpf_trace_printk("Value found in rule_keys for index %d: %d\n", i, *value);
+                    //bpf_trace_printk("Value found in rule_keys for index %d: %d\n", i, *value);
 
                     // Look up the rule in the rule_map
                     rule_entry = rule_map.lookup(&rule_key);
-                    bpf_trace_printk("rule_entry: %u\n", rule_entry);
+                    //bpf_trace_printk("rule_entry: %u\n", rule_entry);
 
 					if (rule_entry) {
-						bpf_trace_printk("Entered rule: %u\n", rule_entry);
-						bpf_trace_printk("Source IP: %u, Destination IP: %u\n", rule_entry->source, rule_entry->destination);
-						if (src_ip == rule_entry->source && dest_ip == rule_entry->destination){
-							bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+						//bpf_trace_printk("Entered rule: %u\n", rule_entry);
+                        //bpf_trace_printk("IP packet:\n");
+						//bpf_trace_printk("Source IP: %u, Destination IP: %u\n", src_ip, dest_ip);
+                        //bpf_trace_printk("Source port: %u, to destination port: %u\n", src_port, dest_port);
+                        //bpf_trace_printk("In rule:\n");
+                        //bpf_trace_printk("Source IP: %u, Destination IP: %u\n", rule_entry->source, rule_entry->destination);
+                        //bpf_trace_printk("Source port: %u, to destination port: %u\n", rule_entry->srcport, rule_entry->destport);
+                        
+                        if ((rule_entry->source == 0||src_ip == rule_entry->source) && (dest_ip == rule_entry->destination||rule_entry->destination == 0) && (rule_entry->srcport == 0||src_port == rule_entry->srcport) && (rule_entry->destport == 0 || dest_port == rule_entry->destport)){
+							//bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 							if (rule_entry->action == 1) {
-								bpf_trace_printk("Blocked with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+								//bpf_trace_printk("Blocked with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
 								return XDP_DROP;
 							} else if (rule_entry->action == 0) {
-								bpf_trace_printk("Passed with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+								//bpf_trace_printk("Passed with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
 								return XDP_PASS;
 							}
 						}else{
                             if (i < 2){
-                                bpf_trace_printk("Checked rule:%u. Checking next rule: %u\n", i ,i+1); 
+                                //bpf_trace_printk("Checked rule:%u. Checking next rule: %u\n", i ,i+1); 
                             } else {
-                                bpf_trace_printk("Checked rule:%u. End of rule for UDP protocol", i); 
+                                //bpf_trace_printk("Checked rule:%u. End of rule for UDP protocol", i); 
                             }
 							
 						}
 					}
 				} else if (i == 2){
-                    bpf_trace_printk("No matching rule for src and dest. Passed UDP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                    //bpf_trace_printk("No matching rule for src and dest. Passed UDP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
                     return XDP_PASS;
                 }
 			}
 		} else {
-            bpf_trace_printk("IP Packet with diffrent protocol than ICMP,TCP and UDP passed");
+            //bpf_trace_printk("IP Packet with diffrent protocol than ICMP,TCP and UDP passed");
             rc = XDP_PASS;
         }
     } else if (h_proto == htons(ETH_P_IPV6)){
-		bpf_trace_printk("IPv6");
+		//bpf_trace_printk("IPv6");
 	} else if (h_proto == htons(ETH_P_ARP)){
-		bpf_trace_printk("ARP");
+		//bpf_trace_printk("ARP");
 	} else if (h_proto == htons(ETH_P_RARP)){
-		bpf_trace_printk("Reverse ARP");
+		//bpf_trace_printk("Reverse ARP");
 	}
 
 
-    bpf_trace_printk("Packet processed returned rc");
+    //bpf_trace_printk("Packet processed returned rc");
     return rc;
 }
 `
 
 // Add the RulesConfig and Rule struct definitions at the top of your file
-
 type RulesConfig struct {
-    Rules []*Rule `toml:"rules"`
+	Rules []*Rule `toml:"rules"`
 }
 
 // Rule struct definition
 type Rule struct {
-    Action      int32  `toml:"action"`
-    Protocol    int32  `toml:"protocol"`
-    Source      string `toml:"source"`
-    Destination string `toml:"destination"`
+	Action      int32  `toml:"action"`
+	Protocol    int32  `toml:"protocol"`
+	Source      string `toml:"source"`
+	SrcPort     string `toml:"src_port"`
+	Destination string `toml:"destination"`
+	DestPort    string `toml:"dest_port"`
 }
 
 // Add the RuleKey struct definition
@@ -300,7 +338,7 @@ type RuleKey struct {
 // Add a function to convert a RuleKey to bytes
 func ruleKeyToBytes(key *RuleKey) []byte {
 	size := int(unsafe.Sizeof(*key))
-	data := (*[1<<30]byte)(unsafe.Pointer(key))[:size:size]
+	data := (*[1 << 30]byte)(unsafe.Pointer(key))[:size:size]
 	buf := make([]byte, size)
 	copy(buf, data)
 	return buf
@@ -329,28 +367,15 @@ func getAllRuleKeys() ([]*RuleKey, error) {
 
 // convertIPToUint32 converts an IP address string to uint32
 func convertIPToUint32(ipStr string) (uint32, error) {
-    //fmt.Printf("Converting IP address %s to uint32\n", ipStr)
-
-    ip := net.ParseIP(ipStr)
-    if ip == nil {
-        return 0, fmt.Errorf("Invalid IP address: %s", ipStr)
-    }
-
-    //fmt.Printf("Parsed IP: %v\n", ip)
-
-    // Convert IPv4 address to uint32
-    ipBytes := ip.To4()
-    if ipBytes == nil {
-        return 0, fmt.Errorf("Invalid IPv4 address: %s", ipStr)
-    }
-
-    //fmt.Printf("IPv4 bytes: %v\n", ipBytes)
-
-    uint32Value := binary.LittleEndian.Uint32(ipBytes)
-
-    fmt.Printf("Converted uint32 value: %v\n", uint32Value)
-
-    return uint32Value, nil
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return 0, fmt.Errorf("Invalid IP address: %s", ipStr)
+	}
+	ipBytes := ip.To4()
+	if ipBytes == nil {
+		return 0, fmt.Errorf("Invalid IPv4 address: %s", ipStr)
+	}
+	return binary.LittleEndian.Uint32(ipBytes), nil
 }
 
 // convertIntToBytes converts an integer to a byte slice
@@ -362,89 +387,114 @@ func convertIntToBytes(num int32) []byte {
 
 // ruleEntryToBytes converts a rule entry to a byte slice
 func ruleEntryToBytes(entry *Rule) ([]byte, error) {
-    size := int(unsafe.Sizeof(*entry))
-    buf := make([]byte, size)
+	size := int(unsafe.Sizeof(*entry))
+	buf := make([]byte, size)
 
-    // Convert Source IP address to uint32
-    srcIP, err := convertIPToUint32(entry.Source)
-    if err != nil {
-        return nil, fmt.Errorf("Error converting Source IP to uint32: %v", err)
+	// Convert Source IP address to uint32
+    var srcIP uint32
+    if entry.Source != "*" {
+        srcIPUint, err := convertIPToUint32(entry.Source)
+        if err != nil {
+            return nil, fmt.Errorf("Error converting Source IP to uint32: %v", err)
+        }
+        srcIP = srcIPUint
     }
 
     // Convert Destination IP address to uint32
-    destIP, err := convertIPToUint32(entry.Destination)
-    if err != nil {
-        return nil, fmt.Errorf("Error converting Destination IP to uint32: %v", err)
+    var destIP uint32
+    if entry.Destination != "*" {
+        destIPUint, err := convertIPToUint32(entry.Destination)
+        if err != nil {
+            return nil, fmt.Errorf("Error converting Destination IP to uint32: %v", err)
+        }
+        destIP = destIPUint
     }
 
-    // Use unsafe.Pointer to convert the struct to a byte slice
-    data := (*[1<<30]byte)(unsafe.Pointer(entry))[:size:size]
+    // Convert Source port to uint16
+    var srcPort uint16
+    if entry.SrcPort != "*" {
+        srcPortUint, err := strconv.ParseUint(entry.SrcPort, 10, 16)
+        if err != nil {
+            return nil, fmt.Errorf("Error converting Source Port to uint16: %v", err)
+        }
+        srcPort = uint16(srcPortUint)
+    }
 
-    // Copy the byte slice to the buffer
-    copy(buf, data)
+    // Convert Destination port to uint16
+    var destPort uint16
+    if entry.DestPort != "*" {
+        destPortUint, err := strconv.ParseUint(entry.DestPort, 10, 16)
+        if err != nil {
+            return nil, fmt.Errorf("Error converting Destination Port to uint16: %v", err)
+        }
+        destPort = uint16(destPortUint)
+    }
 
-    // Update the Source and Destination fields in the buffer with the converted IP addresses
-    binary.LittleEndian.PutUint32(buf[8:12], srcIP)       // Source IP offset in the struct
-    binary.LittleEndian.PutUint32(buf[12:16], destIP)     // Destination IP offset in the struct
+	data := (*[1<<30]byte)(unsafe.Pointer(entry))[:size:size]
+	copy(buf, data)
 
-    return buf, nil
+	binary.LittleEndian.PutUint32(buf[8:12], srcIP)          // Source IP offset in the struct
+    binary.LittleEndian.PutUint32(buf[12:16], destIP)        // Destination IP offset in the struct
+	binary.LittleEndian.PutUint16(buf[16:18], srcPort)   // Source port offset in the struct
+    binary.LittleEndian.PutUint16(buf[18:20], destPort)
+
+	return buf, nil
 }
+
 
 
 // updateBPFMapFromToml updates the BPF map with rules from a TOML file.
 func updateBPFMapFromToml(filename string, ruleMap *bcc.Table, ruleKeys *bcc.Table) error {
-    tomlContent, err := ioutil.ReadFile(filename)
-    if err != nil {
-        return fmt.Errorf("Error reading TOML file: %v", err)
-    }
+	tomlContent, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return fmt.Errorf("Error reading TOML file: %v", err)
+	}
 
-    var rulesConfig RulesConfig
-    err = toml.Unmarshal(tomlContent, &rulesConfig)
-    if err != nil {
-        return fmt.Errorf("Error unmarshalling rules from TOML: %v", err)
-    }
+	var rulesConfig RulesConfig
+	err = toml.Unmarshal(tomlContent, &rulesConfig)
+	if err != nil {
+		return fmt.Errorf("Error unmarshalling rules from TOML: %v", err)
+	}
 
-    fmt.Println("Processing rules from TOML file...")
+	fmt.Println("Processing rules from TOML file...")
 
-    // Iterate through the rules and update the BPF maps
-    for index, rule := range rulesConfig.Rules {
-        // Convert the index to a byte slice
-        key := convertIntToBytes(int32(index)) // Convert index to int32
-        protocolKey := convertIntToBytes(int32(rule.Protocol))
+	// Iterate through the rules and update the BPF maps
+	for index, rule := range rulesConfig.Rules {
+		key := convertIntToBytes(int32(index))
+		protocolKey := convertIntToBytes(rule.Protocol)
 
-        // Update the rule entry with IP addresses directly
-        ruleMapEntry := &Rule{
-            Action:      rule.Action,
-            Protocol:    rule.Protocol,
-            Source:      rule.Source,
-            Destination: rule.Destination,
-        }
+		ruleMapEntry := &Rule{
+			Action:      rule.Action,
+			Protocol:    rule.Protocol,
+			Source:      rule.Source,
+			SrcPort:     rule.SrcPort,
+			Destination: rule.Destination,
+			DestPort:    rule.DestPort,
+		}
 
-        // Convert the updated rule entry to a byte slice
-        updatedRuleEntryBytes, err := ruleEntryToBytes(ruleMapEntry)
-        if err != nil {
-            return fmt.Errorf("Error converting updated rule entry to bytes: %v", err)
-        }
+		updatedRuleEntryBytes, err := ruleEntryToBytes(ruleMapEntry)
+		if err != nil {
+			return fmt.Errorf("Error converting updated rule entry to bytes: %v", err)
+		}
 
-        // Insert the updated entry into the ruleMap
-        err = ruleMap.Set(key, updatedRuleEntryBytes)
-        if err != nil {
-            return fmt.Errorf("Error inserting updated entry into BPF map: %v", err)
-        }
+		err = ruleMap.Set(key, updatedRuleEntryBytes)
+		if err != nil {
+			return fmt.Errorf("Error inserting updated entry into BPF map: %v", err)
+		}
 
-        // Insert the key into the ruleKeys map
-        err = ruleKeys.Set(key, protocolKey)
-        if err != nil {
-            return fmt.Errorf("Error inserting key into ruleKeys map: %v", err)
-        }
+		err = ruleKeys.Set(key, protocolKey)
+		if err != nil {
+			return fmt.Errorf("Error inserting key into ruleKeys map: %v", err)
+		}
 
-        fmt.Printf("Rule %d processed successfully. Key: %v, Entry: %v\n", index, key, updatedRuleEntryBytes)
-    }
+		fmt.Printf("Rule %d processed successfully. Key: %v, Entry: %v\n", index, key, updatedRuleEntryBytes)
+	}
 
-    fmt.Println("Finished processing rules from TOML file.")
+	fmt.Println("Finished processing rules from TOML file.")
 
-    return nil
+	return nil
 }
+
 
 
 func usage() {
