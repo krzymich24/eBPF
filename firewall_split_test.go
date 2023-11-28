@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+    "time"
 	"github.com/iovisor/gobpf/bcc"
 )
 
@@ -317,9 +318,15 @@ func usage() {
 
 var module *bcc.Module
 
+// BPF_TABLE is used to declare the rule_map BPF array
+var rule_map *bcc.Table
+
+// BPF_TABLE is used to declare the rule_map BPF array
+var ruleKeys *bcc.Table
+
 func main() {
 	start := time.Now()
-	var device
+	var device string
 
 	if len(os.Args) != 2 {
 		usage()
@@ -362,7 +369,7 @@ func main() {
 		}
 	}()
 
-	fmt.Printf("Blocking packets from specific IPv4 addresses. Use %v to update rules from TOML.\n", tomlFile)
+	fmt.Printf("Blocking packets from specific IPv4 addresses. Use %v to update rules from TOML.\n")
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 

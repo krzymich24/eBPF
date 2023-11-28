@@ -198,13 +198,13 @@ int xdp_prog1(struct CTXTYPE *ctx) {
                     bpf_trace_printk("rule_entry: %u\n", rule_entry);
 
 					if (rule_entry) {
-						//bpf_trace_printk("Entered rule: %u\n", rule_entry);
+						bpf_trace_printk("Entered rule: %u\n", rule_entry);
                         //bpf_trace_printk("IP packet:\n");
 						//bpf_trace_printk("Source IP: %u, Destination IP: %u\n", src_ip, dest_ip);
                         //bpf_trace_printk("Source port: %u, to destination port: %u\n", src_port, dest_port);
                         //bpf_trace_printk("In rule:\n");
                         //bpf_trace_printk("Source IP: %u, Destination IP: %u\n", rule_entry->source, rule_entry->destination);
-                        bpf_trace_printk("Source port: %u, to destination port: %u\n", rule_entry->srcport, rule_entry->destport);
+                        //bpf_trace_printk("Source port: %u, to destination port: %u\n", rule_entry->srcport, rule_entry->destport);
 
 						if ((rule_entry->source == 0||src_ip == rule_entry->source) && (dest_ip == rule_entry->destination||rule_entry->destination == 0) && (rule_entry->srcport == 0||src_port == rule_entry->srcport) && (rule_entry->destport == 0 || dest_port == rule_entry->destport)){
 							bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
@@ -225,7 +225,7 @@ int xdp_prog1(struct CTXTYPE *ctx) {
 						}
 					}
 				} else if (i == 2){
-                    //bpf_trace_printk("No matching rule for src and dest. Passed TCP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                    bpf_trace_printk("No matching rule for src and dest. Passed TCP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
                     return XDP_PASS;
                 }
 			}
@@ -259,14 +259,14 @@ int xdp_prog1(struct CTXTYPE *ctx) {
                 value = rule_keys.lookup(&rule_key);
                 if (value && *value == protocol_number) {
                     // Found a matching value in the hash
-                    //bpf_trace_printk("Value found in rule_keys for index %d: %d\n", i, *value);
+                    bpf_trace_printk("Value found in rule_keys for index %d: %d\n", i, *value);
 
                     // Look up the rule in the rule_map
                     rule_entry = rule_map.lookup(&rule_key);
                     //bpf_trace_printk("rule_entry: %u\n", rule_entry);
 
 					if (rule_entry) {
-						//bpf_trace_printk("Entered rule: %u\n", rule_entry);
+						bpf_trace_printk("Entered rule: %u\n", rule_entry);
                         //bpf_trace_printk("IP packet:\n");
 						//bpf_trace_printk("Source IP: %u, Destination IP: %u\n", src_ip, dest_ip);
                         //bpf_trace_printk("Source port: %u, to destination port: %u\n", src_port, dest_port);
@@ -277,28 +277,28 @@ int xdp_prog1(struct CTXTYPE *ctx) {
                         if ((rule_entry->source == 0||src_ip == rule_entry->source) && (dest_ip == rule_entry->destination||rule_entry->destination == 0) && (rule_entry->srcport == 0||src_port == rule_entry->srcport) && (rule_entry->destport == 0 || dest_port == rule_entry->destport)){
 							//bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 							if (rule_entry->action == 1) {
-								//bpf_trace_printk("Blocked with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+								bpf_trace_printk("Blocked with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
 								return XDP_DROP;
 							} else if (rule_entry->action == 0) {
-								//bpf_trace_printk("Passed with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+								bpf_trace_printk("Passed with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
 								return XDP_PASS;
 							}
 						}else{
                             if (i < 2){
-                                //bpf_trace_printk("Checked rule:%u. Checking next rule: %u\n", i ,i+1); 
+                                bpf_trace_printk("Checked rule:%u. Checking next rule: %u\n", i ,i+1); 
                             } else {
-                                //bpf_trace_printk("Checked rule:%u. End of rule for UDP protocol", i); 
+                                bpf_trace_printk("Checked rule:%u. End of rule for UDP protocol", i); 
                             }
 							
 						}
 					}
 				} else if (i == 2){
-                    //bpf_trace_printk("No matching rule for src and dest. Passed UDP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                    bpf_trace_printk("No matching rule for src and dest. Passed UDP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
                     return XDP_PASS;
                 }
 			}
 		} else {
-            //bpf_trace_printk("IP Packet with diffrent protocol than ICMP,TCP and UDP passed");
+            bpf_trace_printk("IP Packet with diffrent protocol than ICMP,TCP and UDP passed");
             rc = XDP_PASS;
         }
     } else if (h_proto == htons(ETH_P_IPV6)){

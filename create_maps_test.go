@@ -1,3 +1,4 @@
+//create_maps.go
 package main
 
 import (
@@ -16,6 +17,10 @@ import (
 /*
 #cgo CFLAGS: -I/usr/include/bcc/compat
 #cgo LDFLAGS: -lbcc
+#include <linux/bpf.h>
+#include <linux/if_ether.h>
+#include <linux/ip.h>
+#include "shared_map.h"
 #include <bcc/bcc_common.h>
 #include <bcc/libbpf.h>
 void perf_reader_free(void *ptr);
@@ -224,25 +229,22 @@ func usage() {
 	os.Exit(1)
 }
 
+
 var ruleMap *bcc.Table
 var ruleKeys *bcc.Table
 
 func main() {
 
 	// Load the BPF module and create BPF tables
-	module := bcc.NewModule(source, []string{
-		"-w",
-		"-DRETURNCODE=XDP_PASS",
-		"-DCTXTYPE=xdp_md",
-	})
+    module := bcc.NewModule(source, []string{
+        "-w",
+    })
 
 	defer module.Close()
 
-	// BPF_TABLE is used to declare the rule_map BPF array
-	ruleMap = bcc.NewTable(module.TableId("rule_map"), module)
-
-	// BPF_TABLE is used to declare the rule_keys BPF array
-	ruleKeys = bcc.NewTable(module.TableId("rule_keys"), module)
+    // Load the BPF maps from the manager program
+    ruleMap = bcc.NewTable(module.TableId("rule_map"), module)
+    ruleKeys = bcc.NewTable(module.TableId("rule_keys"), module)
 
 	// Expose the BPF map file descriptor
 	ruleMapFD := module.TableId("rule_map")
@@ -255,22 +257,25 @@ func main() {
 	}
 	defer file.Close()
 
-	fmt.Fprintf(file, "ruleMapFD:%d\n, ruleKeysMapFD:%d", ruleMapFD, ruleKeysMapFD)
+	// Print the map IDs
+	fmt.Printf("BPF maps created successfully. ruleMapFD: %d, ruleKeysMapFD: %d\n", ruleMapFD, ruleKeysMapFD)
+
+	fmt.Fprintf(file, "ruleMapFD:%d\n,ruleKeysMapFD:%d", ruleMapFD, ruleKeysMapFD)
 
 	fmt.Printf("BPF maps created successfully.\n")
 
-    // Update BPF maps from a TOML file
-    tomlFile := "config.toml"
-    err = updateBPFMapFromToml(tomlFile, ruleMap, ruleKeys)
-    if err != nil {
-        fmt.Fprintf(os.Stderr, "Failed to update BPF map from TOML: %v\n", err)
-        os.Exit(1)
-    }
+	// Update BPF maps from a TOML file
+	tomlFile := "config.toml"
+	err = updateBPFMapFromToml(tomlFile, ruleMap, ruleKeys)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to update BPF map from TOML: %v\n", err)
+		os.Exit(1)
+	}
 
-    fmt.Printf("BPF maps created and updated successfully from %v\n", tomlFile)
+	fmt.Printf("BPF maps created and updated successfully from %v\n", tomlFile)
 
-    // Infinite loop to keep the program running
-    fmt.Println("Program is running. Press Ctrl+C to stop.")
+	// Infinite loop to keep the program running
+	fmt.Println("Program is running. Press Ctrl+C to stop.")
 
-    select {}
+	select {}
 }

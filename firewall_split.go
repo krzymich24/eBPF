@@ -1,11 +1,11 @@
 package main
 
+
 import (
 	"fmt"
 	"os"
 	"os/signal"
-	"time"
-
+    "time"
 	"github.com/iovisor/gobpf/bcc"
 )
 
@@ -45,7 +45,7 @@ struct rulekey {
 
 // Change from BPF_HASH to BPF_ARRAY
 BPF_ARRAY(rule_map, struct rule, 3);
-BPF_HASH(rule_keys, int32_t, int32_t); 
+BPF_HASH(rule_keys, int32_t, int32_t);  
 
 static inline int parse_ipv4(void *data, u64 nh_off, void *data_end) {
     struct iphdr *iph = data + nh_off;
@@ -309,31 +309,48 @@ int xdp_prog1(struct CTXTYPE *ctx) {
     return rc;
 }
 `
+
 func usage() {
 	fmt.Printf("Usage: %v <ifdev>\n", os.Args[0])
 	fmt.Printf("e.g.: %v eth0\n", os.Args[0])
 	os.Exit(1)
 }
 
-var ruleMap *bcc.Table
+var module *bcc.Module
+
+// BPF_TABLE is used to declare the rule_map BPF array
+var rule_map *bcc.Table
+
+// BPF_TABLE is used to declare the rule_map BPF array
 var ruleKeys *bcc.Table
 
 func main() {
+	start := time.Now()
+	var device string
+
 	if len(os.Args) != 2 {
 		usage()
 	}
 
-	device := os.Args[1]
+	device = os.Args[1]
 
-	// Read the BPF map file descriptor from a file or any communication channel
-	mapFD := // Read the map file descriptor
+	ret := "XDP_PASS"
+	ctxtype := "xdp_md"
 
-	// Create a BPF Table from the map file descriptor
-	ruleMap := bcc.NewTable(mapFD, nil)
+	module := bcc.NewModule(source, []string{
+		"-w",
+		"-DRETURNCODE=" + ret,
+		"-DCTXTYPE=" + ctxtype,
+	})
 
-	// ... (Rest of your second program logic)
+	defer module.Close()
 
-	// Example: Attach BPF Program to Kprobe (replace with your actual logic)
+	// BPF_TABLE is used to declare the rule_map BPF array
+	rule_map = bcc.NewTable(module.TableId("rule_map"), module)
+
+	// BPF_TABLE is used to declare the rule_map BPF array
+	ruleKeys = bcc.NewTable(module.TableId("rule_keys"), module)
+
 	fn, err := module.Load("xdp_prog1", C.BPF_PROG_TYPE_XDP, 1, 65536)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load xdp prog: %v\n", err)
@@ -346,12 +363,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Blocking packets from specific IPv4 addresses.\n")
+	defer func() {
+		if err := module.RemoveXDP(device); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to remove XDP from %s: %v\n", device, err)
+		}
+	}()
+
+	fmt.Printf("Blocking packets from specific IPv4 addresses. Use %v to update rules from TOML.\n")
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
 	select {
 	case <-sig:
-		fmt.Println("Exiting...")
+		elapsed := time.Since(start)
+		seconds := elapsed.Seconds()
+		fmt.Printf("\nIP packets blocked by %.2f seconds\n", seconds)
 	}
 }
