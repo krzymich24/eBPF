@@ -271,5 +271,6 @@ func main() {
 
     // Infinite loop to keep the program running
     fmt.Println("Program is running. Press Ctrl+C to stop.")
+
     select {}
 }

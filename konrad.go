@@ -302,15 +302,13 @@ int xdp_prog1(struct CTXTYPE *ctx) {
             rc = XDP_PASS;
         }
     } else if (h_proto == htons(ETH_P_IPV6)){
-		//bpf_trace_printk("IPv6");
+		bpf_trace_printk("IPv6");
 	} else if (h_proto == htons(ETH_P_ARP)){
-		//bpf_trace_printk("ARP");
+		bpf_trace_printk("ARP");
 	} else if (h_proto == htons(ETH_P_RARP)){
-		//bpf_trace_printk("Reverse ARP");
+		bpf_trace_printk("Reverse ARP");
 	}
 
-
-    //bpf_trace_printk("Packet processed returned rc");
     return rc;
 }
 `
@@ -445,6 +443,9 @@ func ruleEntryToBytes(entry *Rule) ([]byte, error) {
 
 // updateBPFMapFromToml updates the BPF map with rules from a TOML file.
 func updateBPFMapFromToml(filename string, ruleMap *bcc.Table, ruleKeys *bcc.Table) error {
+	// Clear existing entries in ruleMap and ruleKeys
+    ruleMap.DeleteAll()
+    ruleKeys.DeleteAll()
 	tomlContent, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("Error reading TOML file: %v", err)
@@ -495,7 +496,20 @@ func updateBPFMapFromToml(filename string, ruleMap *bcc.Table, ruleKeys *bcc.Tab
 	return nil
 }
 
+func waitForUpdateSignal() {
+    for {
+        fmt.Println("Press Enter to update rules from TOML...")
+        _, err := fmt.Scanln()
+        if err != nil {
+            fmt.Fprintf(os.Stderr, "Error reading user input: %v\n", err)
+            close(updateSignal)
+            return
+        }
+        updateSignal <- struct{}{}
+    }
+}
 
+var updateSignal chan struct{} // Channel to signal map update
 
 func usage() {
     fmt.Printf("Usage: %v <ifdev> <tomlfile>\n", os.Args[0])
@@ -558,19 +572,42 @@ func main() {
 	}
 
 	defer func() {
-		if err := module.RemoveXDP(device); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to remove XDP from %s: %v\n", device, err)
-		}
-	}()
+        if err := module.RemoveXDP(device); err != nil {
+            fmt.Fprintf(os.Stderr, "Failed to remove XDP from %s: %v\n", device, err)
+        }
+
+        // Delete BPF maps
+        rule_map.DeleteAll()
+        ruleKeys.DeleteAll()
+    }()
 
 	fmt.Printf("Blocking packets from specific IPv4 addresses. Use %v to update rules from TOML.\n", tomlFile)
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, os.Kill)
 
-	select {
-	case <-sig:
-		elapsed := time.Since(start)
-		seconds := elapsed.Seconds()
-		fmt.Printf("\nIP packets blocked by %.2f seconds\n", seconds)
-	}
+	updateSignal = make(chan struct{})
+    defer close(updateSignal)
+
+    // Start the goroutine to wait for user input
+    go waitForUpdateSignal()
+
+	for {
+        select {
+        case <-updateSignal:
+            // Handle map update here
+            fmt.Println("Updating rules from TOML...")
+            err := updateBPFMapFromToml(tomlFile, rule_map, ruleKeys)
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "Failed to update BPF map from TOML: %v\n", err)
+            } else {
+                fmt.Println("Rules updated successfully.")
+            }
+
+        case <-sig:
+            elapsed := time.Since(start)
+            seconds := elapsed.Seconds()
+            fmt.Printf("\nIP packets blocked by %.2f seconds\n", seconds)
+            return
+        }
+    }
 }
