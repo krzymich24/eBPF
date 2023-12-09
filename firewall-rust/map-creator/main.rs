@@ -3,10 +3,12 @@ use aya::{
     maps::HashMap,
     Bpf,
 };
+use aya::programs::Xdp;
 use log::{info, warn};
 use aya_log::BpfLogger;
 use std::net::Ipv4Addr;
 use tokio::signal;
+
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -15,12 +17,12 @@ async fn main() -> Result<(), anyhow::Error> {
     // Load the eBPF object file at compile-time
     #[cfg(debug_assertions)]
     let mut bpf = Bpf::load(include_bytes_aligned!(
-        "../../target/bpfel-unknown-none/debug/map-manager"
+        "../../../target/bpfel-unknown-none/debug/firewall"
     ))?;
 
     #[cfg(not(debug_assertions))]
     let mut bpf = Bpf::load(include_bytes_aligned!(
-        "../../target/bpfel-unknown-none/release/map-manager"
+        "../../../target/bpfel-unknown-none/release/firewall"
     ))?;
 
     // Initialize the eBPF logger
