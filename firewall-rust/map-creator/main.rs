@@ -15,18 +15,22 @@ async fn main() -> Result<(), anyhow::Error> {
     // Load the eBPF object file at compile-time
     #[cfg(debug_assertions)]
     let mut bpf = Bpf::load(include_bytes_aligned!(
-        "../../../firewall/target/bpfel-unknown-none/debug/firewall"
+        "../../target/bpfel-unknown-none/debug/map-manager"
     ))?;
 
     #[cfg(not(debug_assertions))]
     let mut bpf = Bpf::load(include_bytes_aligned!(
-        "../../../firewall/target/bpfel-unknown-none/release/firewall"
+        "../../target/bpfel-unknown-none/release/map-manager"
     ))?;
 
     // Initialize the eBPF logger
     if let Err(e) = BpfLogger::init(&mut bpf) {
         warn!("failed to initialize eBPF logger: {}", e);
     }
+
+    let program: &mut Xdp =
+    bpf.program_mut("xdp_firewall").unwrap().try_into()?;
+    program.load()?;
 
     // Create a rule map
     let mut rule_map: HashMap<_, u32, u32> = HashMap::try_from(bpf.map_mut("rule").unwrap())?;
