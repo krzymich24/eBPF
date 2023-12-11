@@ -12,7 +12,7 @@ int main(void) {
     // Open the BPF object file
     struct bpf_object *obj;
 
-    obj = bpf_object__open_file("bpf_program.o", NULL);
+    obj = bpf_object__open_file("bpf_program1.o", NULL);
     if (!obj) {
         fprintf(stderr, "Error opening BPF object file: %s\n", strerror(errno));
         return 1;
@@ -42,6 +42,13 @@ int main(void) {
     }
 
     printf("BPF map found successfully with FD: %d\n", map_fd);
+
+    // Reuse the BPF map file descriptor
+    if (bpf_map__reuse_fd(map, map_fd) != 0) {
+        fprintf(stderr, "Error reusing BPF map file descriptor: %s\n", strerror(errno));
+        bpf_object__close(obj);
+        return 1;
+    }
 
     // Allocate memory for keys and values
     int keys[MAX_ENTRIES];
