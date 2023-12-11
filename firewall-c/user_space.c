@@ -1,15 +1,30 @@
-// bpf_map_example.c
-
+//user_space.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <linux/bpf.h>
 #include <bpf/libbpf.h>
+#include <signal.h>
+
+struct bpf_object *obj;
+
+// Signal handler to handle Ctrl+C
+void cleanup_and_exit(int sig) {
+    fprintf(stderr, "Received signal %d. Cleaning up...\n", sig);
+
+    if (obj) {
+        bpf_object__close(obj);
+    }
+
+    exit(0);
+}
 
 int main(void) {
+    // Install the signal handler
+    signal(SIGINT, cleanup_and_exit);
+
     // Create BPF map
-    struct bpf_object *obj;
     struct bpf_map *map;
 
     obj = bpf_object__open_file("bpf_program.o", NULL);
@@ -41,15 +56,25 @@ int main(void) {
 
     printf("BPF map created and loaded successfully\n");
 
-    // Keep the program running
-    sleep(10);
+    // Print the file descriptor of the map
+    printf("File Descriptor of BPF map: %d\n", bpf_map__fd(map));
 
-    // Clean up
-    bpf_object__close(obj);
+    // Insert a value into the map
+    int key = 42;
+    long value = 123;
+
+    if (bpf_map_update_elem(bpf_map__fd(map), &key, &value, BPF_ANY) != 0) {
+        perror("Error inserting value into BPF map");
+        bpf_object__close(obj);
+        return 1;
+    }
+
+    printf("Value inserted into BPF map successfully\n");
+
+    // Keep the program running
+    while (1) {
+        sleep(1);
+    }
 
     return 0;
-
 }
-
-
-

@@ -1,5 +1,3 @@
-// user_program1.c
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,7 +28,7 @@ int main(void) {
     // Find the map by name
     struct bpf_map *map = bpf_object__find_map_by_name(obj, "my_map");
     if (!map) {
-        fprintf(stderr, "Error finding BPF map\n");
+        fprintf(stderr, "Error finding BPF map by name: %s\n", strerror(errno));
         bpf_object__close(obj);
         return 1;
     }
@@ -49,17 +47,21 @@ int main(void) {
     int keys[MAX_ENTRIES];
     long values[MAX_ENTRIES];
 
+    // Declare 'next_key' before the loop
+    int next_key;
+
     // Iterate over all entries in the BPF map
     int key;
     long value;
     int i = 0;
 
-    while (bpf_map_get_next_key(map_fd, &key, &key) == 0) {
+    while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0) {
         if (bpf_map_lookup_elem(map_fd, &key, &value) == 0) {
             keys[i] = key;
             values[i] = value;
             i++;
         }
+        key = next_key;
     }
 
     // Print all key-value pairs
