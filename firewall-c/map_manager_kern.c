@@ -2,14 +2,25 @@
 
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
+#include <stdint.h>
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, __u32);
-    __type(value, __u32);
+    __type(value, struct rule);  
     __uint(max_entries, 1024);
     __uint(pinning, LIBBPF_PIN_BY_NAME);
 } rule_map SEC(".maps");
+
+struct rule {
+    char    name[64];   
+    int32_t action;
+    int32_t protocol;
+    int32_t source;
+    int32_t destination;
+    int16_t srcport;
+    int16_t destport;
+};
 
 SEC("xdp")
 int bpf_program(struct __sk_buff *skb) {

@@ -7,6 +7,17 @@
 #include <bpf/libbpf.h>
 #include <signal.h>
 
+// Define the rule structure
+struct rule {
+    char    name[64];
+    int32_t action;
+    int32_t protocol;
+    int32_t source;
+    int32_t destination;
+    int16_t srcport;
+    int16_t destport;
+};
+
 struct bpf_object *obj;
 
 // Signal handler to handle Ctrl+C
@@ -41,12 +52,6 @@ int main(void) {
         return 1;
     }
 
-    // Update map attributes
-    bpf_map__set_type(map, BPF_MAP_TYPE_HASH);
-    bpf_map__set_key_size(map, sizeof(int));
-    bpf_map__set_value_size(map, sizeof(long));
-    bpf_map__set_max_entries(map, 1024);
-
     // Load BPF object and create the map
     if (bpf_object__load(obj)) {
         fprintf(stderr, "Error loading BPF object\n");
@@ -60,10 +65,19 @@ int main(void) {
     printf("File Descriptor of BPF map: %d\n", bpf_map__fd(map));
 
     // Insert a value into the map
-    int key = 42;
-    long value = 123;
+    int key = 1;
+    struct rule my_rule;
 
-    if (bpf_map_update_elem(bpf_map__fd(map), &key, &value, BPF_ANY) != 0) {
+    // Set values for the rule
+    strncpy(my_rule.name, "my_rule_name", sizeof(my_rule.name));
+    my_rule.action = 1;
+    my_rule.protocol = 6;
+    my_rule.source = 192 << 24 | 168 << 16 | 1 << 8 | 1;
+    my_rule.destination = 192 << 24 | 168 << 16 | 1 << 8 | 2;
+    my_rule.srcport = 12345;
+    my_rule.destport = 54321;
+
+    if (bpf_map_update_elem(bpf_map__fd(map), &key, &my_rule, BPF_ANY) != 0) {
         perror("Error inserting value into BPF map");
         bpf_object__close(obj);
         return 1;
