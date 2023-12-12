@@ -1,3 +1,2 @@
-clang -O2 -target bpf -c bpf_program.c -o bpf_program.o - kompilowanie bpf
+clang -O2 -target bpf -g -c bpf_program1.c -o bpf_program1.o - kompilowanie bpf do bft
 gcc bpf_program.c -o bpf_program -lbpf - kompilowanie userspaceów
-

@@ -18,23 +18,9 @@ int main(void) {
         return 1;
     }
 
-    // Load the BPF object
-    if (bpf_object__load(obj)) {
-        fprintf(stderr, "Error loading BPF object: %s\n", strerror(errno));
-        bpf_object__close(obj);
-        return 1;
-    }
+    // Retrieve the file descriptor of the existing BPF map (replace <your_map_name>)
+    int map_fd = bpf_obj_get("/sys/fs/bpf/my_map");
 
-    // Find the map by name
-    struct bpf_map *map = bpf_object__find_map_by_name(obj, "my_map");
-    if (!map) {
-        fprintf(stderr, "Error finding BPF map by name: %s\n", strerror(errno));
-        bpf_object__close(obj);
-        return 1;
-    }
-
-    // Retrieve the file descriptor of the BPF map
-    int map_fd = bpf_map__fd(map);
     if (map_fd < 0) {
         fprintf(stderr, "Error obtaining file descriptor for BPF map: %s\n", strerror(errno));
         bpf_object__close(obj);
@@ -44,8 +30,15 @@ int main(void) {
     printf("BPF map found successfully with FD: %d\n", map_fd);
 
     // Reuse the BPF map file descriptor
-    if (bpf_map__reuse_fd(map, map_fd) != 0) {
+    if (bpf_map__reuse_fd(bpf_object__find_map_by_name(obj, "my_map"), map_fd) != 0) {
         fprintf(stderr, "Error reusing BPF map file descriptor: %s\n", strerror(errno));
+        bpf_object__close(obj);
+        return 1;
+    }
+
+    // Load the BPF object
+    if (bpf_object__load(obj)) {
+        fprintf(stderr, "Error loading BPF object: %s\n", strerror(errno));
         bpf_object__close(obj);
         return 1;
     }
@@ -54,21 +47,20 @@ int main(void) {
     int keys[MAX_ENTRIES];
     long values[MAX_ENTRIES];
 
-    // Declare 'next_key' before the loop
-    int next_key;
-
     // Iterate over all entries in the BPF map
     int key;
-    long value;
     int i = 0;
 
-    while (bpf_map_get_next_key(map_fd, &key, &next_key) == 0) {
+    // Initialize key to 0 before the loop
+    key = 0;
+
+    while (bpf_map_get_next_key(map_fd, &key, &key) == 0) {
+        long value;
         if (bpf_map_lookup_elem(map_fd, &key, &value) == 0) {
             keys[i] = key;
             values[i] = value;
             i++;
         }
-        key = next_key;
     }
 
     // Print all key-value pairs
