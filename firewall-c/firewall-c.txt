@@ -1,4 +1,4 @@
-clang -O2 -target bpf -g -c bpf_program1.c -o bpf_program1.o - compliling bpf prog to bft
+clang -O2 -target bpf -g -c firewall_kern.c -o firewall_kern.o - compliling bpf prog to bft
 gcc firewall_user.c -o firewall_user -lbpf - compiling userspace application
 gcc firewall_user.c -o firewall_user -lbpf -lconfig
 

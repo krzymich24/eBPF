@@ -13,11 +13,11 @@ struct {
 } rule_map SEC(".maps");
 
 struct rule {
-    char    name[64];   
+    char    name[64];
     int32_t action;
     int32_t protocol;
-    int32_t source;
-    int32_t destination;
+    uint32_t source_ip;
+    uint32_t dest_ip;
     int16_t srcport;
     int16_t destport;
 };

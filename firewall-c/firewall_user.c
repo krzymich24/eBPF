@@ -14,9 +14,10 @@
 #endif
 
 struct bpf_object *obj;
+const char *interface; // Declare interface as a global variable
 
 // Signal handler to handle Ctrl+C and termination signals
-void cleanup_and_exit(int sig, const char *interface) {
+void cleanup_and_exit(int sig) {
     fprintf(stderr, "Received signal %d. Detaching BPF program and shutting down...\n", sig);
 
     // Detach BPF program before closing
@@ -39,6 +40,9 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Usage: %s <interface>\n", argv[0]);
         return 1;
     }
+
+    // Set global interface variable
+    interface = argv[1];
 
     // Install the signal handler for Ctrl+C and termination signals
     signal(SIGINT, cleanup_and_exit);
@@ -77,7 +81,6 @@ int main(int argc, char **argv) {
     }
 
     // Attach the BPF program to the XDP_TX hook on the specified interface
-    const char *interface = argv[1];
     int ifindex = if_nametoindex(interface);
 
     if (ifindex == 0) {

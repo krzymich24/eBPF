@@ -6,14 +6,15 @@
 #include <linux/bpf.h>
 #include <bpf/libbpf.h>
 #include <signal.h>
+#include <bpf/bpf.h>
 
 // Define the rule structure
 struct rule {
     char    name[64];
     int32_t action;
     int32_t protocol;
-    int32_t source;
-    int32_t destination;
+    uint32_t source_ip;
+    uint32_t dest_ip;
     int16_t srcport;
     int16_t destport;
 };
@@ -72,8 +73,8 @@ int main(void) {
     strncpy(my_rule.name, "my_rule_name", sizeof(my_rule.name));
     my_rule.action = 1;
     my_rule.protocol = 1;
-    my_rule.source = 192 << 24 | 168 << 16 | 1 << 8 | 13;
-    my_rule.destination = 192 << 24 | 168 << 16 | 1 << 8 | 2;
+    my_rule.source_ip = 192 << 24 | 168 << 16 | 1 << 8 | 13;
+    my_rule.dest_ip = 192 << 24 | 168 << 16 | 1 << 8 | 2;
     my_rule.srcport = 80;
     my_rule.destport = 8080;
 
