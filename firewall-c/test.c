@@ -7,7 +7,6 @@
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <arpa/inet.h>
-#include <linux/icmp.h>
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -27,42 +26,24 @@ struct rule {
     int16_t destport;
 };
 
-static inline int parse_ipv4(void *data, uint64_t nh_off, void *data_end) {
-    struct iphdr *iph = data + nh_off;
-
-    if ((void*)&iph[1] > data_end){
-        return 0;
-    }
-
-    return iph->protocol;
-}
-
 SEC("xdp")
 int bpf_program1(struct xdp_md *ctx) {
     void *data_end = (void *)(long)ctx->data_end;
     void *data = (void *)(long)ctx->data;
 
     struct ethhdr *eth = data;
-    uint16_t h_proto;
+    __u16 h_proto;
     uint8_t ip_protocol;
-    uint64_t nh_off = 0;
-    nh_off = sizeof(*eth);
         
-    if (data + nh_off  > data_end){ // This check is necessary to pass verification
+    if (data + sizeof(struct ethhdr) > data_end){ // This check is necessary to pass verification
         return XDP_DROP;
     } 
-    
+                
+        
     h_proto = eth->h_proto;
-
     if (h_proto == htons(ETH_P_IP)) { 
         struct iphdr *ip = data + sizeof(struct ethhdr);
-        ip_protocol = parse_ipv4(data, nh_off, data_end);
-         if (ip_protocol == IPPROTO_ICMP) {
-            struct iphdr *iph = data + nh_off;
-            uint32_t src_ip = iph->saddr;
-			uint32_t dest_ip = iph->daddr;
-            return XDP_DROP;
-         }
+        ip_protocol = ip->protocol;
         return XDP_PASS;
     } else if (h_proto == htons(ETH_P_IPV6)){
         struct ipv6hdr *ipv6 = data + sizeof(struct ethhdr);
