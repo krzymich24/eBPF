@@ -71,11 +71,11 @@ int main(void) {
     // Set values for the rule
     strncpy(my_rule.name, "my_rule_name", sizeof(my_rule.name));
     my_rule.action = 1;
-    my_rule.protocol = 6;
-    my_rule.source = 192 << 24 | 168 << 16 | 1 << 8 | 1;
+    my_rule.protocol = 1;
+    my_rule.source = 192 << 24 | 168 << 16 | 1 << 8 | 13;
     my_rule.destination = 192 << 24 | 168 << 16 | 1 << 8 | 2;
-    my_rule.srcport = 12345;
-    my_rule.destport = 54321;
+    my_rule.srcport = 80;
+    my_rule.destport = 8080;
 
     if (bpf_map_update_elem(bpf_map__fd(map), &key, &my_rule, BPF_ANY) != 0) {
         perror("Error inserting value into BPF map");

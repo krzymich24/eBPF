@@ -1,2 +1,14 @@
 clang -O2 -target bpf -g -c bpf_program1.c -o bpf_program1.o - compliling bpf prog to bft
-gcc user_space.c -o user_space -lbpf - compiling userspace application
+gcc firewall_user.c -o firewall_user -lbpf - compiling userspace application
+gcc firewall_user.c -o firewall_user -lbpf -lconfig
+
+
+
+[[rules]]
+name = "Block SSH"
+action = 1
+protocol = 6
+source = "192.168.1.12"
+destination = "192.168.1.11"
+srcport = "80"
+destport = "8080"

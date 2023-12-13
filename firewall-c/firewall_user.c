@@ -7,29 +7,44 @@
 #include <bpf/libbpf.h>
 #include <bpf/bpf.h>
 #include <signal.h>
+#include <net/if.h>
 
-#define MAX_ENTRIES 1024
+#ifndef XDP_FLAGS_UPDATE_IF_NOEXIST
+#define XDP_FLAGS_UPDATE_IF_NOEXIST (1U << 0)
+#endif
 
 struct bpf_object *obj;
 
-// Signal handler to handle Ctrl+C
-void cleanup_and_exit(int sig) {
-    fprintf(stderr, "Received signal %d. Shutting down...\n", sig);
+// Signal handler to handle Ctrl+C and termination signals
+void cleanup_and_exit(int sig, const char *interface) {
+    fprintf(stderr, "Received signal %d. Detaching BPF program and shutting down...\n", sig);
 
+    // Detach BPF program before closing
     if (obj) {
+        int ifindex = if_nametoindex(interface);
+        int prog_fd = bpf_program__fd(bpf_object__find_program_by_name(obj, "bpf_program1"));
+
+        if (bpf_set_link_xdp_fd(ifindex, -1, 0) == -1) {
+            fprintf(stderr, "Error detaching BPF program from interface %s: %s\n", interface, strerror(errno));
+        }
+        
         bpf_object__close(obj);
     }
 
     exit(0);
 }
 
-int main(void) {
-    // Install the signal handler
+int main(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <interface>\n", argv[0]);
+        return 1;
+    }
+
+    // Install the signal handler for Ctrl+C and termination signals
     signal(SIGINT, cleanup_and_exit);
+    signal(SIGTERM, cleanup_and_exit);
 
     // Open the BPF object file
-    struct bpf_object *obj;
-
     obj = bpf_object__open_file("firewall_kern.o", NULL);
     if (!obj) {
         fprintf(stderr, "Error opening BPF object file: %s\n", strerror(errno));
@@ -61,31 +76,24 @@ int main(void) {
         return 1;
     }
 
-    // Allocate memory for keys and values
-    int keys[MAX_ENTRIES];
-    long values[MAX_ENTRIES];
+    // Attach the BPF program to the XDP_TX hook on the specified interface
+    const char *interface = argv[1];
+    int ifindex = if_nametoindex(interface);
 
-    // Iterate over all entries in the BPF map
-    int key;
-    int i = 0;
-
-    // Initialize key to 0 before the loop
-    key = 0;
-
-    while (bpf_map_get_next_key(map_fd, &key, &key) == 0) {
-        long value;
-        if (bpf_map_lookup_elem(map_fd, &key, &value) == 0) {
-            keys[i] = key;
-            values[i] = value;
-            i++;
-        }
+    if (ifindex == 0) {
+        fprintf(stderr, "Error getting interface index for %s: %s\n", interface, strerror(errno));
+        bpf_object__close(obj);
+        return 1;
     }
 
-    // Print all key-value pairs
-    printf("All values in the BPF map:\n");
-    for (int j = 0; j < i; j++) {
-        printf("Key: %d, Value: %ld\n", keys[j], values[j]);
+    int prog_fd = bpf_program__fd(bpf_object__find_program_by_name(obj, "bpf_program1"));
+    if (bpf_set_link_xdp_fd(ifindex, prog_fd, XDP_FLAGS_UPDATE_IF_NOEXIST) == -1) {
+        fprintf(stderr, "Error attaching BPF program to interface %s: %s\n", interface, strerror(errno));
+        bpf_object__close(obj);
+        return 1;
     }
+
+    printf("BPF program attached to interface %s successfully\n", interface);
 
     // Keep the program running
     while (1) {
