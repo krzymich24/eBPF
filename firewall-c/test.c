@@ -27,7 +27,7 @@ struct rule {
     int16_t destport;
 };
 
-static inline int parse_ipv4(void *data, uint64_t nh_off, void *data_end) {
+static inline uint8_t parse_ipv4(void *data, uint64_t nh_off, void *data_end) {
     struct iphdr *iph = data + nh_off;
 
     if ((void*)&iph[1] > data_end){
@@ -55,35 +55,43 @@ int bpf_program1(struct xdp_md *ctx) {
     h_proto = eth->h_proto;
 
     if (h_proto == htons(ETH_P_IP)) { 
+        
         struct iphdr *ip = data + sizeof(struct ethhdr);
         ip_protocol = parse_ipv4(data, nh_off, data_end);
+
         if (ip_protocol == IPPROTO_ICMP) {
             struct iphdr *iph = data + nh_off;
-            uint32_t src_ip = iph->saddr;
-			uint32_t dest_ip = iph->daddr;
+            uint32_t src_ip = ntohl(iph->saddr);
+			uint32_t dest_ip = ntohl(iph->daddr);
 
             struct rule *rule_entry;
-            __u32 key = 0;  
-
+            
             for (int i = 0; i < 1024; i++) {
+                int key = i;  
                 rule_entry = (struct rule *)bpf_map_lookup_elem(&rule_map, &key);
-
+                //bpf_printk("rule_entry pointer: %lu\n", (unsigned long)rule_entry);
                 if (rule_entry) {
+                    //bpf_printk("Entered rule: %lu\n", (unsigned long)rule_entry);
                     int32_t rule_protocol = rule_entry->protocol;
-
+                    //bpf_printk("Rule protocol: %u\n", rule_protocol);
                     if (rule_protocol == 1) {
+                        //bpf_printk("Entered last loop: \n");
                         uint32_t rule_src_ip = rule_entry->source_ip;
                         uint32_t rule_dest_ip = rule_entry->dest_ip;
-
-                        if (src_ip == rule_src_ip && dest_ip == rule_dest_ip) {
+                        if ( src_ip == rule_src_ip && dest_ip == rule_dest_ip ) {
                             return XDP_DROP; 
                         }
+
                     }
-                    key++;
+
                 }
+                key++;
             }
+
         }
+
         return XDP_PASS;
+
     } else if (h_proto == htons(ETH_P_IPV6)){
         struct ipv6hdr *ipv6 = data + sizeof(struct ethhdr);
 		return XDP_PASS;
