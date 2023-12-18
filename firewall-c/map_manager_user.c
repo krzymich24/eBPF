@@ -10,7 +10,7 @@
 #include <errno.h>  // Add this line for errno
 #include <bpf/bpf.h>
 
-#define MAX_RULES 100
+#define MAX_RULES 1024
 
 struct rule {
     char name[64];

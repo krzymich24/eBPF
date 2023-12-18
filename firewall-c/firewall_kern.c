@@ -69,13 +69,13 @@ int bpf_program1(struct xdp_md *ctx) {
             for (int i = 0; i < 1024; i++) {
                 int key = i;  
                 rule_entry = (struct rule *)bpf_map_lookup_elem(&rule_map, &key);
-                //bpf_printk("rule_entry pointer: %lu\n", (unsigned long)rule_entry);
+                bpf_printk("rule_entry pointer: %lu\n", (unsigned long)rule_entry);
                 if (rule_entry) {
-                    //bpf_printk("Entered rule: %lu\n", (unsigned long)rule_entry);
+                    bpf_printk("Entered rule: %lu\n", (unsigned long)rule_entry);
                     int32_t rule_protocol = rule_entry->protocol;
-                    //bpf_printk("Rule protocol: %u\n", rule_protocol);
+                    bpf_printk("Rule protocol: %u\n", rule_protocol);
                     if (rule_protocol == 1) {
-                        //bpf_printk("Entered last loop: \n");
+                        bpf_printk("Entered last loop: \n");
                         uint32_t rule_src_ip = rule_entry->source_ip;
                         uint32_t rule_dest_ip = rule_entry->dest_ip;
                         if ( src_ip == rule_src_ip && dest_ip == rule_dest_ip ) {

@@ -1,3 +1,4 @@
+//map_manager_user.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +10,7 @@
 #include <errno.h>  // Add this line for errno
 #include <bpf/bpf.h>
 
-#define MAX_RULES 100
+#define MAX_RULES 1024
 
 struct rule {
     char name[64];

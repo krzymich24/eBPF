@@ -1,14 +1,26 @@
 clang -O2 -target bpf -g -c firewall_kern.c -o firewall_kern.o - compliling bpf prog to bft
-gcc firewall_user.c -o firewall_user -lbpf - compiling userspace application
-gcc firewall_user.c -o firewall_user -lbpf -lconfig
+clang -O2 -target bpf -g -c map_manager_kern.c -o map_manager_kern.o - compliling bpf prog to bft
+gcc -o firewall_user firewall_user.c -lelf -lbpf - compiling userspace firewall application
+gcc -o map_manager_user map_manager_user.c -lbpf -lelf  - compiling userspace map manager application
+
+cat /sys/kernel/debug/tracing/trace_pipe
 
 
+#comment 1
+name=my_rule_name1
+action=1
+protocol=6
+source_ip=192.168.1.13
+dest_ip=*
+srcport=1
+destport=*
 
-[[rules]]
-name = "Block SSH"
-action = 1
-protocol = 6
-source = "192.168.1.12"
-destination = "192.168.1.11"
-srcport = "80"
-destport = "8080"
+
+#comment 2
+name=my_rule_name2
+action=1
+protocol=6
+source_ip=123.23.32.1
+dest_ip=192.168.1.2
+srcport=82
+destport=8080
