@@ -37,25 +37,22 @@ int read_config(const char *filename, struct rule *my_rule) {
         return 1;
     }
 
-    // Use an array to store IP address parts
-    uint32_t temp_ip[4];
+    uint32_t temp_ip;
 
-    if (fscanf(file, "name=%63s\n", my_rule->name) != 1 ||
-        fscanf(file, "action=%d\n", &my_rule->action) != 1 ||
-        fscanf(file, "protocol=%d\n", &my_rule->protocol) != 1 ||
-        fscanf(file, "source_ip=%u.%u.%u.%u\n", &temp_ip[0], &temp_ip[1], &temp_ip[2], &temp_ip[3]) != 4 ||
-        fscanf(file, "dest_ip=%u.%u.%u.%u\n", &temp_ip[0], &temp_ip[1], &temp_ip[2], &temp_ip[3]) != 4 ||
-        fscanf(file, "srcport=%hd\n", &my_rule->srcport) != 1 ||
-        fscanf(file, "destport=%hd\n", &my_rule->destport) != 1) {
-        fprintf(stderr, "Error reading configuration file\n");
-        fclose(file);
-        return 1;
-    }
+    fscanf(file, "name=%63s\n", my_rule->name);
+    fscanf(file, "action=%d\n", &my_rule->action);
+    fscanf(file, "protocol=%d\n", &my_rule->protocol);
 
-    // Construct the IP addresses from the parts
-    my_rule->source_ip = (temp_ip[0] << 24) | (temp_ip[1] << 16) | (temp_ip[2] << 8) | temp_ip[3];
-    fscanf(file, "dest_ip=%u.%u.%u.%u\n", &temp_ip[0], &temp_ip[1], &temp_ip[2], &temp_ip[3]);
-    my_rule->dest_ip = (temp_ip[0] << 24) | (temp_ip[1] << 16) | (temp_ip[2] << 8) | temp_ip[3];
+    fscanf(file, "source_ip=%hhu.%hhu.%hhu.%hhu\n",
+           &temp_ip, &temp_ip, &temp_ip, &temp_ip);
+    my_rule->source_ip = temp_ip;
+
+    fscanf(file, "dest_ip=%hhu.%hhu.%hhu.%hhu\n",
+           &temp_ip, &temp_ip, &temp_ip, &temp_ip);
+    my_rule->dest_ip = temp_ip;
+
+    fscanf(file, "srcport=%hd\n", &my_rule->srcport);
+    fscanf(file, "destport=%hd\n", &my_rule->destport);
 
     fclose(file);
     return 0;

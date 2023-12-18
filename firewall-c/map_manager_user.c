@@ -1,4 +1,4 @@
-// map_manager_user.c
+//map_manager_user.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +8,6 @@
 #include <signal.h>
 #include <bpf/bpf.h>
 
-// Define the rule structure
 struct rule {
     char    name[64];
     int32_t action;
@@ -21,7 +20,6 @@ struct rule {
 
 struct bpf_object *obj;
 
-// Signal handler to handle Ctrl+C
 void cleanup_and_exit(int sig) {
     fprintf(stderr, "Received signal %d. Cleaning maps up and shutting down...\n", sig);
 
@@ -32,11 +30,40 @@ void cleanup_and_exit(int sig) {
     exit(0);
 }
 
+int read_config(const char *filename, struct rule *my_rule) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Error opening configuration file");
+        return 1;
+    }
+
+    // Use an array to store IP address parts
+    uint32_t temp_ip[4];
+
+    if (fscanf(file, "name=%63s\n", my_rule->name) != 1 ||
+        fscanf(file, "action=%d\n", &my_rule->action) != 1 ||
+        fscanf(file, "protocol=%d\n", &my_rule->protocol) != 1 ||
+        fscanf(file, "source_ip=%u.%u.%u.%u\n", &temp_ip[0], &temp_ip[1], &temp_ip[2], &temp_ip[3]) != 4 ||
+        fscanf(file, "dest_ip=%u.%u.%u.%u\n", &temp_ip[0], &temp_ip[1], &temp_ip[2], &temp_ip[3]) != 4 ||
+        fscanf(file, "srcport=%hd\n", &my_rule->srcport) != 1 ||
+        fscanf(file, "destport=%hd\n", &my_rule->destport) != 1) {
+        fprintf(stderr, "Error reading configuration file\n");
+        fclose(file);
+        return 1;
+    }
+
+    // Construct the IP addresses from the parts
+    my_rule->source_ip = (temp_ip[0] << 24) | (temp_ip[1] << 16) | (temp_ip[2] << 8) | temp_ip[3];
+    fscanf(file, "dest_ip=%u.%u.%u.%u\n", &temp_ip[0], &temp_ip[1], &temp_ip[2], &temp_ip[3]);
+    my_rule->dest_ip = (temp_ip[0] << 24) | (temp_ip[1] << 16) | (temp_ip[2] << 8) | temp_ip[3];
+
+    fclose(file);
+    return 0;
+}
+
 int main(void) {
-    // Install the signal handler
     signal(SIGINT, cleanup_and_exit);
 
-    // Create BPF map
     struct bpf_map *map;
 
     obj = bpf_object__open_file("map_manager_kern.o", NULL);
@@ -53,7 +80,6 @@ int main(void) {
         return 1;
     }
 
-    // Load BPF object and create the map
     if (bpf_object__load(obj)) {
         fprintf(stderr, "Error loading BPF object\n");
         bpf_object__close(obj);
@@ -61,22 +87,14 @@ int main(void) {
     }
 
     printf("BPF map created and loaded successfully\n");
-
-    // Print the file descriptor of the map
     printf("File Descriptor of BPF map: %d\n", bpf_map__fd(map));
 
-    // Insert a value into the map
     int key = 1;
     struct rule my_rule;
-
-    // Set values for the rule
-    strncpy(my_rule.name, "my_rule_name", sizeof(my_rule.name));
-    my_rule.action = 1;
-    my_rule.protocol = 1;
-    my_rule.source_ip = 192 << 24 | 168 << 16 | 1 << 8 | 13;
-    my_rule.dest_ip = 192 << 24 | 168 << 16 | 1 << 8 | 2;
-    my_rule.srcport = 80;
-    my_rule.destport = 8080;
+    if (read_config("rules.conf", &my_rule) != 0) {
+        bpf_object__close(obj);
+        return 1;
+    }
 
     if (bpf_map_update_elem(bpf_map__fd(map), &key, &my_rule, BPF_ANY) != 0) {
         perror("Error inserting value into BPF map");
@@ -86,7 +104,6 @@ int main(void) {
 
     printf("Value inserted into BPF map successfully\n");
 
-    // Keep the program running
     while (1) {
         sleep(1);
     }
