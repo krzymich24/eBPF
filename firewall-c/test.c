@@ -48,7 +48,7 @@ int bpf_program1(struct xdp_md *ctx) {
     uint64_t nh_off = 0;
     nh_off = sizeof(*eth);
         
-    if (data + nh_off  > data_end){ // This check is necessary to pass verification
+    if (data + nh_off  > data_end){
         return XDP_DROP;
     } 
     
@@ -67,30 +67,52 @@ int bpf_program1(struct xdp_md *ctx) {
             struct rule *rule_entry;
             
             for (int i = 0; i < 1024; i++) {
+                
                 int key = i;  
                 rule_entry = (struct rule *)bpf_map_lookup_elem(&rule_map, &key);
-                bpf_printk("rule_entry pointer: %lu\n", (unsigned long)rule_entry);
+
                 if (rule_entry) {
-                    bpf_printk("Entered rule: %lu\n", (unsigned long)rule_entry);
-                    int32_t rule_protocol = rule_entry->protocol;
-                    bpf_printk("Rule protocol: %u\n", rule_protocol);
-                    if (rule_protocol == 1) {
-                        bpf_printk("Entered last loop: \n");
+
+                    if (rule_entry->protocol == 1) {
                         uint32_t rule_src_ip = rule_entry->source_ip;
                         uint32_t rule_dest_ip = rule_entry->dest_ip;
-                        if ( src_ip == rule_src_ip && dest_ip == rule_dest_ip ) {
-                            return XDP_DROP; 
+                        if ( (src_ip == rule_src_ip || rule_src_ip == 0) && (dest_ip == rule_dest_ip || rule_dest_ip == 0) ) {
+                            if (rule_entry->action == 1) {
+                                bpf_printk("Blocked with rule: %u, ICMP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+								return XDP_DROP;
+							} else if (rule_entry->action == 0) {
+                                bpf_printk("Passed with rule: %u, ICMP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+								return XDP_PASS;
+							}
                         }
 
                     }
 
+                } else if (key == 1023){
+                    bpf_printk("Passed ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                    return XDP_PASS;
+
+                } else{
+                    
+                    key++;
+
                 }
-                key++;
+
             }
 
-        }
+        } else if (ip_protocol == IPPROTO_TCP){
 
-        return XDP_PASS;
+            return XDP_PASS;
+
+        } else if (ip_protocol == IPPROTO_UDP){
+
+            return XDP_PASS;
+            
+        }else{
+
+            return XDP_PASS;
+        
+        }
 
     } else if (h_proto == htons(ETH_P_IPV6)){
         struct ipv6hdr *ipv6 = data + sizeof(struct ethhdr);

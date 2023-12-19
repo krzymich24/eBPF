@@ -28,40 +28,19 @@ struct rule {
 
 struct bpf_object *obj;
 
-void cleanup_and_exit(int sig) {
-    fprintf(stderr, "Received signal %d. Cleaning maps up and shutting down...\n", sig);
-
-    if (obj) {
-        bpf_object__close(obj);
-    }
-
-    exit(0);
-}
+//function clearing and closing bpf object when program is closing 
+void cleanup_and_exit(int sig);
 
 // Function to set terminal to non-blocking mode
-void set_nonblock(int state) {
-    struct termios ttystate;
-
-    // Get the terminal state
-    tcgetattr(STDIN_FILENO, &ttystate);
-
-    if (state == 0) {
-        // Set to non-blocking mode
-        ttystate.c_lflag &= ~ICANON;
-    } else {
-        // Set to blocking mode
-        ttystate.c_lflag |= ICANON;
-    }
-
-    // Apply the new settings
-    tcsetattr(STDIN_FILENO, TCSANOW, &ttystate);
-}
+void set_nonblock(int state);
 
 // Function to clear rule map and read rules from file
 void reload_rules(void);
 
+//Reading from .conf file 
 int read_config(const char *filename, struct rule *rules, size_t *num_rules);
 
+//main program responsible for creating, loading and managing map
 int main(void) {
     signal(SIGINT, cleanup_and_exit);
 
@@ -173,8 +152,8 @@ void reload_rules() {
     printf("%zu values inserted into BPF map successfully\n", num_rules);
 }
 
-// Function to read configuration from file
 int read_config(const char *filename, struct rule *rules, size_t *num_rules) {
+    
      FILE *file = fopen(filename, "r");
     if (!file) {
         perror("Error opening configuration file");
@@ -250,4 +229,32 @@ int read_config(const char *filename, struct rule *rules, size_t *num_rules) {
 
     fclose(file);
     return 0;
+}
+
+void cleanup_and_exit(int sig) {
+    fprintf(stderr, "Received signal %d. Cleaning maps up and shutting down...\n", sig);
+
+    if (obj) {
+        bpf_object__close(obj);
+    }
+
+    exit(0);
+}
+
+void set_nonblock(int state) {
+    struct termios ttystate;
+
+    // Get the terminal state
+    tcgetattr(STDIN_FILENO, &ttystate);
+
+    if (state == 0) {
+        // Set to non-blocking mode
+        ttystate.c_lflag &= ~ICANON;
+    } else {
+        // Set to blocking mode
+        ttystate.c_lflag |= ICANON;
+    }
+
+    // Apply the new settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &ttystate);
 }
