@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <linux/icmp.h>
 #include <linux/tcp.h>
+#include <netinet/udp.h>
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -116,6 +117,8 @@ int bpf_program1(struct xdp_md *ctx) {
             uint16_t src_port = ntohs(tcph->source);
             uint16_t dest_port = ntohs(tcph->dest);
 
+            bpf_printk("SRC Port: %u, DEST Port: %u\n", src_port, dest_port);
+
             struct rule *rule_entry;
 
             for (int i = 0; i < 1024; i++) {
@@ -128,7 +131,10 @@ int bpf_program1(struct xdp_md *ctx) {
                     if (rule_entry->protocol == 6) {
                         uint32_t rule_src_ip = rule_entry->source_ip;
                         uint32_t rule_dest_ip = rule_entry->dest_ip;
-                        if ( (src_ip == rule_src_ip || rule_src_ip == 0) && (dest_ip == rule_dest_ip || rule_dest_ip == 0) ) {
+                        uint16_t rule_src_port = rule_entry->srcport;
+                        uint16_t rule_dest_port = rule_entry->destport;
+
+                        if ( (src_ip == rule_src_ip || rule_src_ip == 0) && (dest_ip == rule_dest_ip || rule_dest_ip == 0) && (src_port == rule_src_port || rule_src_port == 0) && (dest_port == rule_dest_port || rule_dest_port == 0 ) ) {
                             if (rule_entry->action == 1) {
                                 bpf_printk("Blocked with rule: %u, TCP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
 								return XDP_DROP;
@@ -152,13 +158,23 @@ int bpf_program1(struct xdp_md *ctx) {
 
             }
 
-            return XDP_PASS;
-
         } else if (ip_protocol == IPPROTO_UDP){
 
             struct iphdr *iph = data + nh_off;
             uint32_t src_ip = ntohl(iph->saddr);
-			uint32_t dest_ip = ntohl(iph->daddr);
+            uint32_t dest_ip = ntohl(iph->daddr);
+
+            // Extract source and destination ports
+            void *transport_header = data + nh_off + sizeof(struct iphdr);
+            if (transport_header + sizeof(struct udphdr) > data_end) {
+                return XDP_DROP;
+            }
+
+            struct udphdr *udph = transport_header;
+            uint16_t src_port = ntohs(udph->source);
+            uint16_t dest_port = ntohs(udph->dest);
+
+            bpf_printk("SRC Port: %u, DEST Port: %u\n", src_port, dest_port);
 
             struct rule *rule_entry;
 
@@ -172,7 +188,10 @@ int bpf_program1(struct xdp_md *ctx) {
                     if (rule_entry->protocol == 17) {
                         uint32_t rule_src_ip = rule_entry->source_ip;
                         uint32_t rule_dest_ip = rule_entry->dest_ip;
-                        if ( (src_ip == rule_src_ip || rule_src_ip == 0) && (dest_ip == rule_dest_ip || rule_dest_ip == 0) ) {
+                        uint16_t rule_src_port = rule_entry->srcport;
+                        uint16_t rule_dest_port = rule_entry->destport;
+
+                        if ( (src_ip == rule_src_ip || rule_src_ip == 0) && (dest_ip == rule_dest_ip || rule_dest_ip == 0) && (src_port == rule_src_port || rule_src_port == 0) && (dest_port == rule_dest_port || rule_dest_port == 0 ) ) {
                             if (rule_entry->action == 1) {
                                 bpf_printk("Blocked with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
 								return XDP_DROP;
@@ -195,8 +214,6 @@ int bpf_program1(struct xdp_md *ctx) {
                 }
 
             }
-
-            return XDP_PASS;
             
         }else{
 
