@@ -9,8 +9,9 @@
 #include <termios.h>
 #include <errno.h>  // Add this line for errno
 #include <bpf/bpf.h>
+#include <arpa/inet.h>
 
-#define MAX_RULES 1024
+#define MAX_RULES 10
 
 struct rule {
     char name[64];
@@ -18,8 +19,8 @@ struct rule {
     int32_t protocol;
     uint32_t source_ip;
     uint32_t dest_ip;
-    int16_t srcport;
-    int16_t destport;
+    uint16_t srcport;
+    uint16_t destport;
     char srcport_str[16];  // String representation of srcport
     char destport_str[16]; // String representation of destport
     char srcip_str[16];  // String representation of srcport
@@ -215,13 +216,13 @@ int read_config(const char *filename, struct rule *rules, size_t *num_rules) {
         if (strcmp(rules[*num_rules].srcport_str, "*") == 0) {
             rules[*num_rules].srcport = 0;  // Set to wildcard value
         } else {
-            rules[*num_rules].srcport = atoi(rules[*num_rules].srcport_str);  // Convert to integer
+            rules[*num_rules].srcport = htons((uint16_t)atoi(rules[*num_rules].srcport_str));
         }
 
         if (strcmp(rules[*num_rules].destport_str, "*") == 0) {
             rules[*num_rules].destport = 0;  // Set to wildcard value
         } else {
-            rules[*num_rules].destport = atoi(rules[*num_rules].destport_str);  // Convert to integer
+            rules[*num_rules].destport = htons((uint16_t)atoi(rules[*num_rules].destport_str));
         }
 
         (*num_rules)++;

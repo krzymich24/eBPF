@@ -8,7 +8,7 @@ struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __type(key, __u32);
     __type(value, struct rule);  
-    __uint(max_entries, 1024);
+    __uint(max_entries, 10);
     __uint(pinning, LIBBPF_PIN_BY_NAME);
 } rule_map SEC(".maps");
 
@@ -18,8 +18,8 @@ struct rule {
     int32_t protocol;
     uint32_t source_ip;
     uint32_t dest_ip;
-    int16_t srcport;
-    int16_t destport;
+    uint16_t srcport;
+    uint16_t destport;
 };
 
 SEC("xdp")
