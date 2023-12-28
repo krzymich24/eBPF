@@ -108,11 +108,6 @@ func ParseAndModifyLine(line string) (string, error) {
 			outputLine = fmt.Sprintf("%s: Pass %s packet from source port: %s, to destination port: %s", currentTimeFormatted, protocol, sourceStr, destinationStr)
 		}
 
-		
-
-
-
-
 		return outputLine, nil
 	}
 
@@ -240,7 +235,11 @@ func readFromTracePipeAndSaveToFile(outputFilePath string, wg *sync.WaitGroup, d
 }
 
 func main() {
-	outputFilePath := "trace_output.txt"
+	// Generate the current date in the format YYYY_MM_DD
+	currentDate := time.Now().Format("2006_01_02")
+
+	// Create the output file path with the current date
+	outputFilePath := fmt.Sprintf("Log_%s.txt", currentDate)
 
 	// Create a WaitGroup and a channel to signal the goroutine to stop
 	var wg sync.WaitGroup
