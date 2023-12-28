@@ -10,6 +10,7 @@
 #include <linux/icmp.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
+#include <stdio.h>
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -18,6 +19,14 @@ struct {
     __uint(max_entries, 10);
     __uint(pinning, LIBBPF_PIN_BY_NAME);
 } rule_map SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, __u32);
+    __type(value, char[200]);
+    __uint(max_entries, 100);
+    __uint(pinning, LIBBPF_PIN_BY_NAME);
+} log_map SEC(".maps");
 
 struct rule {
     char    name[64];
@@ -28,6 +37,18 @@ struct rule {
     uint16_t src_port;
     uint16_t dest_port;
 };
+
+int keylog = 0;
+
+void loger(const char *str) {
+
+    bpf_map_update_elem(&log_map, &keylog, str, BPF_ANY);
+    keylog++;
+
+    if(keylog == 100){
+       keylog = 0; 
+    }
+}
 
 static inline uint8_t parse_ipv4(void *data, uint64_t nh_off, void *data_end) {
     struct iphdr *iph = data + nh_off;
@@ -91,6 +112,12 @@ int bpf_program1(struct xdp_md *ctx) {
                     }
 
                 } else if (key == 9){
+                    char log_message[200];
+                    int parameter1 = 42;
+
+                    // Format the log message with parameters
+                    snprintf(log_message, sizeof(log_message), "Passed ICMP packet with parameters: %d", parameter1);
+                    loger(log_message);
                     bpf_printk("Passed ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
                     return XDP_PASS;
 

@@ -80,10 +80,10 @@ int bpf_program1(struct xdp_md *ctx) {
                         uint32_t rule_dest_ip = rule_entry->dest_ip;
                         if ( (src_ip == rule_src_ip || rule_src_ip == 0) && (dest_ip == rule_dest_ip || rule_dest_ip == 0) ) {
                             if (rule_entry->action == 1) {
-                                bpf_printk("Blocked with rule: %u, ICMP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+                                bpf_printk("Blocked ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 								return XDP_DROP;
 							} else if (rule_entry->action == 0) {
-                                bpf_printk("Passed with rule: %u, ICMP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+                                bpf_printk("Passed ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 								return XDP_PASS;
 							}
                         }
@@ -91,6 +91,7 @@ int bpf_program1(struct xdp_md *ctx) {
                     }
 
                 } else if (key == 9){
+
                     bpf_printk("Passed ICMP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
                     return XDP_PASS;
 
@@ -112,8 +113,6 @@ int bpf_program1(struct xdp_md *ctx) {
             uint16_t src_port = ntohs(tcph->source);
             uint16_t dest_port = ntohs(tcph->dest);
 
-            bpf_printk("Source Port: %u, to destination Port: %u\n", src_port, dest_port);
-
             struct rule *rule_entry;
 
             for (int i = 0; i < 10; i++) {
@@ -131,10 +130,12 @@ int bpf_program1(struct xdp_md *ctx) {
                         
                         if ( (src_ip == rule_src_ip || rule_src_ip == 0) && (dest_ip == rule_dest_ip || rule_dest_ip == 0) && (src_port == rule_src_port || rule_src_port == 0) && (dest_port == rule_dest_port || rule_dest_port == 0 ) ) {
                             if (rule_entry->action == 1) {
-                                bpf_printk("Blocked with rule: %u, TCP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+                                bpf_printk("Blocked TCP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                                bpf_printk("From TCP source Port: %u, to destination Port: %u\n", src_port, dest_port);
 								return XDP_DROP;
 							} else if (rule_entry->action == 0) {
-                                bpf_printk("Passed with rule: %u, TCP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+                                bpf_printk("Passed TCP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                                bpf_printk("From TCP source Port: %u, to destination Port: %u\n", src_port, dest_port);
 								return XDP_PASS;
 							}
                         }
@@ -142,7 +143,9 @@ int bpf_program1(struct xdp_md *ctx) {
                     }
 
                 } else if (key == 9){
+
                     bpf_printk("Passed TCP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                    bpf_printk("From TCP source Port: %u, to destination Port: %u\n", src_port, dest_port);
                     return XDP_PASS;
 
                 } 
@@ -165,8 +168,6 @@ int bpf_program1(struct xdp_md *ctx) {
             uint16_t src_port = ntohs(udph->source);
             uint16_t dest_port = ntohs(udph->dest);
 
-            bpf_printk("SRC Port: %u, DEST Port: %u\n", src_port, dest_port);
-
             struct rule *rule_entry;
 
             for (int i = 0; i < 10; i++) {
@@ -184,10 +185,12 @@ int bpf_program1(struct xdp_md *ctx) {
 
                         if ( (src_ip == rule_src_ip || rule_src_ip == 0) && (dest_ip == rule_dest_ip || rule_dest_ip == 0) && (src_port == rule_src_port || rule_src_port == 0) && (dest_port == rule_dest_port || rule_dest_port == 0 ) ) {
                             if (rule_entry->action == 1) {
-                                bpf_printk("Blocked with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+                                bpf_printk("Blocked UDP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                                bpf_printk("From UDP source Port: %u, to destination Port: %u\n", src_port, dest_port);
 								return XDP_DROP;
 							} else if (rule_entry->action == 0) {
-                                bpf_printk("Passed with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+                                bpf_printk("Passed UDP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                                bpf_printk("From UDP source Port: %u, to destination Port: %u\n", src_port, dest_port);
 								return XDP_PASS;
 							}
                         }
@@ -196,6 +199,7 @@ int bpf_program1(struct xdp_md *ctx) {
 
                 } else if (key == 9){
                     bpf_printk("Passed UDP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
+                    bpf_printk("From UDP source Port: %u, to destination Port: %u\n", src_port, dest_port);
                     return XDP_PASS;
 
                 }
