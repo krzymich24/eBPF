@@ -2,7 +2,7 @@ clang -O2 -target bpf -g -c firewall_kern.c -o firewall_kern.o - compliling bpf 
 clang -O2 -target bpf -g -c map_manager_kern.c -o map_manager_kern.o - compliling bpf prog to bft
 gcc -o firewall_user firewall_user.c -lelf -lbpf - compiling userspace firewall application
 gcc -o map_manager_user map_manager_user.c -lbpf -lelf  - compiling userspace map manager application
-gcc trace_reader.c -o trace_reader - compiling program to logging everything to file
+go build logger.go - compiling program to logging everything to file
 
 
 cat /sys/kernel/debug/tracing/trace_pipe
