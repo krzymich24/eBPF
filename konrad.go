@@ -209,10 +209,10 @@ int xdp_prog1(struct CTXTYPE *ctx) {
 						if ((rule_entry->source == 0||src_ip == rule_entry->source) && (dest_ip == rule_entry->destination||rule_entry->destination == 0) && (rule_entry->srcport == 0||src_port == rule_entry->srcport) && (rule_entry->destport == 0 || dest_port == rule_entry->destport)){
 							bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 							if (rule_entry->action == 1) {
-								bpf_trace_printk("Blocked with rule: %u, TCP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+								bpf_trace_printk("Blocked TCP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 								return XDP_DROP;
 							} else if (rule_entry->action == 0) {
-								bpf_trace_printk("Passed with rule: %u, TCP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+								bpf_trace_printk("Passed TCP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 								return XDP_PASS;
 							}
 						}else{
@@ -277,10 +277,10 @@ int xdp_prog1(struct CTXTYPE *ctx) {
                         if ((rule_entry->source == 0||src_ip == rule_entry->source) && (dest_ip == rule_entry->destination||rule_entry->destination == 0) && (rule_entry->srcport == 0||src_port == rule_entry->srcport) && (rule_entry->destport == 0 || dest_port == rule_entry->destport)){
 							//bpf_trace_printk("Processed source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 							if (rule_entry->action == 1) {
-								bpf_trace_printk("Blocked with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+								bpf_trace_printk("Blocked UDP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 								return XDP_DROP;
 							} else if (rule_entry->action == 0) {
-								bpf_trace_printk("Passed with rule: %u, UDP packet from source IP: %u, to destination IP: %u\n", rule_entry, src_ip, dest_ip);
+								bpf_trace_printk("Passed UDP packet from source IP: %u, to destination IP: %u\n", src_ip, dest_ip);
 								return XDP_PASS;
 							}
 						}else{
