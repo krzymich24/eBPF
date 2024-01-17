@@ -36,13 +36,13 @@ void cleanup_and_exit(int sig);
 void set_nonblock(int state);
 
 // Function to clear rule map and read rules from file
-void reload_rules(void);
+void clean_map(void);
 
 //Reading from .conf file 
 int read_config(const char *filename, struct rule *rules, size_t *num_rules);
 
 //main program responsible for creating, loading and managing map
-int main(void) {
+int main(int argc, char *argv[]) {
     signal(SIGINT, cleanup_and_exit);
 
     struct bpf_map *map;
@@ -73,8 +73,13 @@ int main(void) {
     struct rule rules[MAX_RULES];
     size_t num_rules;
 
-    // Read rules at the start of the program
-    if (read_config("rules.conf", rules, &num_rules) != 0) {
+    // Read the configuration file name from the command line
+    const char *config_filename = (argc > 1) ? argv[1] : "rules.conf";
+
+    // Read rules from the specified configuration file
+    clean_map();
+
+    if (read_config(config_filename, rules, &num_rules) != 0) {
         bpf_object__close(obj);
         return 1;
     }
@@ -90,30 +95,11 @@ int main(void) {
 
     printf("%zu values inserted into BPF map successfully\n", num_rules);
 
-    // Set terminal to non-blocking mode
-    set_nonblock(0);
-
-    printf("Press Enter to clear rule map and reload rules...\n");
-
-    char c;
-    while (1) {
-        // Check for user input
-        if (read(STDIN_FILENO, &c, 1) > 0 && c == '\n') {
-            // Clear rule map and reload rules
-            reload_rules();
-            printf("Press Enter to clear rule map and reload rules...\n");
-        }
-
-        sleep(1);
-    }
-
-    // Restore terminal to blocking mode
-    set_nonblock(1);
-
-    return 0;
+    // Exit the program after processing the rules
+    cleanup_and_exit(0);
 }
 
-void reload_rules() {
+void clean_map() {
     struct bpf_map *map = bpf_map__next(NULL, obj);
 
     // Read existing keys from the map
@@ -132,25 +118,6 @@ void reload_rules() {
         }
     }
 
-    // Read new rules from file
-    struct rule rules[MAX_RULES];
-    size_t num_rules;
-
-    if (read_config("rules.conf", rules, &num_rules) != 0) {
-        bpf_object__close(obj);
-        exit(1);
-    }
-
-    // Insert the new rules
-    for (size_t i = 0; i < num_rules; i++) {
-        if (bpf_map_update_elem(bpf_map__fd(map), &i, &rules[i], BPF_ANY) != 0) {
-            perror("Error inserting value into BPF map");
-            bpf_object__close(obj);
-            exit(1);
-        }
-    }
-
-    printf("%zu values inserted into BPF map successfully\n", num_rules);
 }
 
 int read_config(const char *filename, struct rule *rules, size_t *num_rules) {
