@@ -37,13 +37,11 @@ func ConvertDecimalToIPv4(decimalIP uint32) string {
 
 // ConvertDecimalToIPv4UDP converts a decimal IPv4 address to dotted-decimal notation for UDP
 func ConvertDecimalToIPv4UDP(decimalIP uint32) string {
-	// Similar to ConvertDecimalToIPv4, you can implement UDP-specific conversion logic here
 	return ConvertDecimalToIPv4(decimalIP)
 }
 
 // ConvertDecimalToIPv4TCP converts a decimal IPv4 address to dotted-decimal notation for TCP
 func ConvertDecimalToIPv4TCP(decimalIP uint32) string {
-	// Similar to ConvertDecimalToIPv4, you can implement TCP-specific conversion logic here
 	return ConvertDecimalToIPv4(decimalIP)
 }
 
@@ -52,7 +50,7 @@ func ParseAndModifyLine(line string) (string, error) {
 	// Define regular expressions for both IP and port patterns
 	reIP := regexp.MustCompile(`.*bpf_trace_printk: No matching rule for src and dest. Passed (ICMP|UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
 	rePip := regexp.MustCompile(`.*bpf_trace_printk: Passed (ICMP|UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
-	reBlockedIP := regexp.MustCompile(`.*bpf_trace_printk: Blocked (ICMP|UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
+	reBlockedIP := regexp.MustCompile(`.*bpf_trace_printk: Blocked with rule: (\d+), (ICMP|UDP|TCP) packet from source IP: (\d+), to destination IP: (\d+)`)
 
 	// Find matches in the input line for both expressions
 	matchesIP := reIP.FindStringSubmatch(line)
@@ -68,25 +66,39 @@ func ParseAndModifyLine(line string) (string, error) {
 			matches = matchesIP
 		case len(matchesPip) == 4:
 			matches = matchesPip
-		case len(matchesBlockedIP) == 4:
+		case len(matchesBlockedIP) == 5:
 			matches = matchesBlockedIP
 		default:
 			return "", fmt.Errorf("invalid line format: %s", line)
 		}
 
 		// Extract matched values
-		protocol := matches[1]
+		var protocol, rule string
 		var sourceStr, destinationStr string
+		var sourceIP, destinationIP uint64
+		var err error
 
-		// Parse source and destination IP addresses
-		sourceIP, err := strconv.ParseUint(matches[2], 10, 32)
-		if err != nil {
-			return "", fmt.Errorf("error parsing source IP: %v", err)
-		}
-
-		destinationIP, err := strconv.ParseUint(matches[3], 10, 32)
-		if err != nil {
-			return "", fmt.Errorf("error parsing destination IP: %v", err)
+		if len(matchesBlockedIP) == 5 {
+			rule = matchesBlockedIP[1]
+			protocol = matchesBlockedIP[2]
+			sourceIP, err = strconv.ParseUint(matchesBlockedIP[3], 10, 32)
+			if err != nil {
+				return "", fmt.Errorf("error parsing source IP: %v", err)
+			}
+			destinationIP, err = strconv.ParseUint(matchesBlockedIP[4], 10, 32)
+			if err != nil {
+				return "", fmt.Errorf("error parsing destination IP: %v", err)
+			}
+		} else {
+			protocol = matches[1]
+			sourceIP, err = strconv.ParseUint(matches[2], 10, 32)
+			if err != nil {
+				return "", fmt.Errorf("error parsing source IP: %v", err)
+			}
+			destinationIP, err = strconv.ParseUint(matches[3], 10, 32)
+			if err != nil {
+				return "", fmt.Errorf("error parsing destination IP: %v", err)
+			}
 		}
 
 		// Switch on protocol to convert IP addresses accordingly
@@ -107,19 +119,16 @@ func ParseAndModifyLine(line string) (string, error) {
 		// Get the current time
 		currentTime := time.Now()
 
-		// Format the current time as HH:MM:SS 02-Jan-2006
+		// Format the current time as HH:MM:SS.999 02-Jan-2006
 		currentTimeFormatted := currentTime.Format("15:04:05.999 02-01-2006")
 
 		// Format the output line with corrected date format and current time
 		var outputLine string
-		switch {
-		case len(matchesIP) == 4:
+		if len(matchesBlockedIP) == 5 {
+			outputLine = fmt.Sprintf("%s: Blocked with rule: %s, %s packet from source IP: %s, to destination IP: %s", currentTimeFormatted, rule, protocol, sourceStr, destinationStr)
+		} else if len(matchesIP) == 4 {
 			outputLine = fmt.Sprintf("%s: Not excluded in rules. Passed %s packet from source IP: %s, to destination IP: %s", currentTimeFormatted, protocol, sourceStr, destinationStr)
-		case len(matchesBlockedIP) == 4:
-			outputLine = fmt.Sprintf("%s: Blocked %s packet from source IP: %s, to destination IP: %s", currentTimeFormatted, protocol, sourceStr, destinationStr)
-		case len(matchesPip) == 4:
-			outputLine = fmt.Sprintf("%s: Passed %s packet from source IP: %s, to destination IP: %s", currentTimeFormatted, protocol, sourceStr, destinationStr)
-		default:
+		} else {
 			outputLine = fmt.Sprintf("%s: Passed %s packet from source IP: %s, to destination IP: %s", currentTimeFormatted, protocol, sourceStr, destinationStr)
 		}
 
@@ -128,9 +137,6 @@ func ParseAndModifyLine(line string) (string, error) {
 
 	return "", fmt.Errorf("no match found in the line: %s", line)
 }
-
-
-
 
 // reverseStringSlice reverses the order of elements in a string slice
 func reverseStringSlice(slice []string) []string {
@@ -161,9 +167,6 @@ func readFromTracePipeAndSaveToFile(outputFilePath string, wg *sync.WaitGroup, d
 	// Create a writer to write to the output file
 	writer := bufio.NewWriter(outputFile)
 
-	// Create a channel to signal the goroutine to stop
-	stop := make(chan struct{})
-
 	// Use a WaitGroup to wait for the goroutine to finish
 	wg.Add(1)
 
@@ -173,7 +176,6 @@ func readFromTracePipeAndSaveToFile(outputFilePath string, wg *sync.WaitGroup, d
 		for {
 			select {
 			case <-done:
-				close(stop)
 				return
 			default:
 				if scanner.Scan() {
@@ -195,8 +197,9 @@ func readFromTracePipeAndSaveToFile(outputFilePath string, wg *sync.WaitGroup, d
 					// Flush the buffer to ensure data is written to the file immediately
 					writer.Flush()
 				} else {
-					// Handle scanner error
-					fmt.Printf("Scanner error: %v\n", scanner.Err())
+					if err := scanner.Err(); err != nil {
+						fmt.Printf("Scanner error: %v\n", err)
+					}
 					return
 				}
 			}
